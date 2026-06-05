@@ -57,7 +57,7 @@ if [ $? -ne 0 ]; then
         echo " -> WARN: Failed to detach JDK 26 dmg volume, you must do it manually or let the reboot unmount it."
 fi
 echo " -> Downloading 3/3: Python modules..."
-/Library/Frameworks/Python.framework/Versions/3.14/bin/python3 -m pip install -r requirements.txt
+/Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -m pip install -r requirements.txt
 if [ $? -ne 0 ]; then
         echo " -> ERR: Failed to install required Python modules."
         exit 1
