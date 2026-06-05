@@ -67,7 +67,7 @@ cp -Lr SquareLauncher.app /Applications/
 if [ $? -ne 0 ]; then
         echo " -> WARN: Failed to configure automated startup wrapper; you must do it manually."
 fi
-cp -L start.sh /usr/local/bin/start-squarelauncher.sh
+cp -L start-squarelauncher.sh /usr/local/bin/start-squarelauncher.sh
 chmod +x /usr/local/bin/start-squarelauncher.sh
 echo " -> Configuring 2/2: SquareLauncher..."
 mkdir ~/SquareLauncher
