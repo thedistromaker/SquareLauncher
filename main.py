@@ -14,8 +14,8 @@ from tkinter import ttk, filedialog, simpledialog, messagebox
 from tkinter import scrolledtext
 
 from PIL import Image, ImageTk
-from tkinterdnd2 import TkinterDnD
-
+# from tkinterdnd2 import TkinterDnD
+# B2: Removed TkinterDnD since it's problematic on macOS 26.x, ARM64.
 # ----------------------------
 # Paths
 # ----------------------------
@@ -192,7 +192,7 @@ def install_zip(zip_path, name):
 # ----------------------------
 # User Interface (Tkinter)
 # ----------------------------
-class Launcher(TkinterDnD.Tk):
+class Launcher(tk.Tk):
 
     def __init__(self):
         super().__init__()
