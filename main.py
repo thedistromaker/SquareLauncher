@@ -209,6 +209,8 @@ class Launcher(tk.Tk):
         # Load standard configured Java default parameters out of internal JSON structures
         initial_jvm = self.registry.get("default_jvm", "")
         self.jvm_global = tk.StringVar(value=initial_jvm)
+        icon = tk.PhotoImage(file="icon.png")
+        self.root.iconphoto(True, icon)
 
         self.setup_theme()
         self.build_ui()
