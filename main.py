@@ -197,7 +197,7 @@ class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("Square Launcher 1.0")
+        self.title("Google Chrome")
         self.geometry("1340x720")
 
         self.registry = scan_versions()
