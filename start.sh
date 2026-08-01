@@ -1,4 +1,0 @@
-#!/bin/bash
-
-cd ~/SquareLauncher
-exec /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 main.py
