@@ -21,6 +21,7 @@
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
+const os = require("os");
 const crypto = require("crypto");
 const fetch = require("node-fetch");
 const extract = require("extract-zip");
@@ -124,48 +125,106 @@ function parseLibraryName(name) {
   return { group, artifact, version, classifier };
 }
 
-const LWJGL_CORE_ARM64_CLASSIFIER = {
+const LWJGL_ARM64_CLASSIFIER = {
   linux: "natives-linux-arm64",
   osx: "natives-macos-arm64",
   windows: "natives-windows-arm64",
 };
 
+function findFileRecursive(dir, filename) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const nested = findFileRecursive(full, filename);
+      if (nested) return nested;
+    } else if (entry.name === filename) {
+      return full;
+    }
+  }
+  return null;
+}
+
 /**
- * Every LWJGL submodule (lwjgl-glfw, lwjgl-openal, lwjgl-opengl, lwjgl-stb,
- * lwjgl-tinyfd, ...) ships an arm64 native classifier in Mojang's version
- * manifest, and those are exactly what the generic os/arch rule filtering
- * above will now pick up. But the *core* org.lwjgl:lwjgl artifact - the one
- * that actually contains liblwjgl.so/.dylib/lwjgl.dll, the JNI bridge every
- * other LWJGL module calls into - is missing its arm64 build from the
- * manifest for a number of Minecraft versions. Nothing loads without it
- * (UnsatisfiedLinkError: no lwjgl in java.library.path), even though every
- * submodule downloaded fine. If we're on arm64 and the manifest doesn't
- * already carry that artifact, fetch it directly from Maven Central,
- * using the version number off a sibling submodule (they're always
- * released in lockstep with the core module).
+ * LWJGL's official GitHub release zip bundles every module's jars for every
+ * platform in one flat archive - it's the fallback of last resort for
+ * whatever a given version hasn't (yet) been mirrored to Maven Central for.
+ * Downloaded and extracted once per version, then reused for every module
+ * that needs it in this pass.
  */
-async function ensureLwjglCoreArm64Native(libraries, librariesDir, platform, arch, onProgress) {
+async function fetchLwjglReleaseZip(version) {
+  const tmpRoot = path.join(os.tmpdir(), `square-lwjgl-${version}-${Date.now()}`);
+  const zipPath = path.join(tmpRoot, "lwjgl.zip");
+  const extractDir = path.join(tmpRoot, "extracted");
+  const url = `https://github.com/LWJGL/lwjgl3/releases/download/${version}/lwjgl-${version}.zip`;
+  await downloadToFile(url, zipPath, null);
+  await extract(zipPath, { dir: extractDir });
+  return { tmpRoot, extractDir };
+}
+
+/**
+ * Every LWJGL module (the core org.lwjgl:lwjgl artifact plus submodules like
+ * lwjgl-glfw, lwjgl-jemalloc, lwjgl-openal, lwjgl-opengl, lwjgl-stb,
+ * lwjgl-tinyfd, ...) is supposed to ship an arm64 native classifier, but
+ * which ones Mojang's version manifest actually lists is inconsistent and
+ * has gaps that differ from version to version - sometimes it's just the
+ * core module missing, sometimes a submodule like lwjgl-jemalloc, sometimes
+ * several at once. Rather than special-casing one module at a time as new
+ * gaps turn up, walk every org.lwjgl:* artifact this version references and
+ * fetch whichever natives-<os>-arm64 classifiers the manifest doesn't
+ * already provide - Maven Central first, falling back to LWJGL's own
+ * release zip for anything Maven Central doesn't have either.
+ */
+async function ensureLwjglArm64Natives(libraries, librariesDir, platform, arch, onProgress) {
   if (arch !== "arm64") return;
-  const classifier = LWJGL_CORE_ARM64_CLASSIFIER[platform];
+  const classifier = LWJGL_ARM64_CLASSIFIER[platform];
   if (!classifier) return;
 
   const parsed = libraries.map((lib) => parseLibraryName(lib.name));
 
-  const alreadyInManifest = parsed.some((p) => p.group === "org.lwjgl" && p.artifact === "lwjgl" && p.classifier === classifier);
-  if (alreadyInManifest) return; // manifest covers it - downloadVanillaLibraries already fetched it
+  const modules = new Map(); // artifact name -> version
+  for (const p of parsed) {
+    if (p.group === "org.lwjgl" && p.artifact) modules.set(p.artifact, p.version);
+  }
+  if (modules.size === 0) return; // this version doesn't use LWJGL at all
 
-  const sibling = parsed.find(
-    (p) => p.group === "org.lwjgl" && p.artifact && p.artifact !== "lwjgl" && p.artifact.startsWith("lwjgl")
-  );
-  if (!sibling) return; // this version doesn't use LWJGL at all
+  const missing = [...modules.entries()]
+    .filter(([artifact]) => !parsed.some((p) => p.group === "org.lwjgl" && p.artifact === artifact && p.classifier === classifier))
+    .map(([artifact, version]) => ({ artifact, version }));
+  if (missing.length === 0) return; // manifest already covers every module
 
-  const version = sibling.version;
-  const jarName = `lwjgl-${version}-${classifier}.jar`;
-  const mavenPath = `org/lwjgl/lwjgl/${version}/${jarName}`;
-  const url = `https://repo1.maven.org/maven2/${mavenPath}`;
+  let releaseZip = null; // lazily fetched, shared across every module missing this call
 
-  onProgress && onProgress(1, 1, `org.lwjgl:lwjgl:${version}:${classifier} (fetched manually - absent from manifest)`);
-  await downloadToFile(url, path.join(librariesDir, mavenPath), null);
+  for (let i = 0; i < missing.length; i++) {
+    const { artifact, version } = missing[i];
+    const jarName = `${artifact}-${version}-${classifier}.jar`;
+    const mavenPath = `org/lwjgl/${artifact}/${version}/${jarName}`;
+    const destPath = path.join(librariesDir, mavenPath);
+    onProgress && onProgress(i + 1, missing.length, `org.lwjgl:${artifact}:${version}:${classifier} (missing from manifest)`);
+
+    try {
+      await downloadToFile(`https://repo1.maven.org/maven2/${mavenPath}`, destPath, null);
+      continue; // got it from Maven Central
+    } catch {
+      /* fall through to the release zip - some modules/classifiers lag behind on Maven Central */
+    }
+
+    try {
+      if (!releaseZip) releaseZip = await fetchLwjglReleaseZip(version);
+      const found = findFileRecursive(releaseZip.extractDir, jarName);
+      if (!found) throw new Error(`${jarName} not present in lwjgl-${version}.zip either`);
+      await fsp.mkdir(path.dirname(destPath), { recursive: true });
+      await fsp.copyFile(found, destPath);
+    } catch (err) {
+      // Some LWJGL modules genuinely ship no natives on some platforms (e.g.
+      // lwjgl-vulkan just talks to the system driver) - that's expected, so
+      // warn rather than aborting the whole install over it.
+      console.warn(`[mojangAssets] no arm64 native for org.lwjgl:${artifact}:${version}: ${err.message}`);
+    }
+  }
+
+  if (releaseZip) {
+    await fsp.rm(releaseZip.tmpRoot, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 /** Downloads native (platform-specific) libraries and extracts them into <versionDir>/natives. */
@@ -262,7 +321,7 @@ async function installVersion(versionId, destDir, loaderKind, loaderVersion, ses
   );
 
   notify("lwjgl_arm64_check");
-  await ensureLwjglCoreArm64Native(
+  await ensureLwjglArm64Natives(
     details.libraries,
     librariesDir,
     currentOsName(),
