@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' file: data: https:; font-src https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" />
+  <title>SquareLauncher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="grid-bg"></div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <span class="brand-mark">▢</span>
+        <span class="brand-name">SQ</span>
+      </div>
+    </div>
+    
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="home" title="Home">
+        <span class="nav-icon">⌂</span>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-item" data-view="profiles" title="Profiles">
+        <span class="nav-icon">▦</span>
+        <span class="nav-label">Profiles</span>
+      </button>
+      <button class="nav-item" data-view="mods" title="Mods">
+        <span class="nav-icon">M</span>
+        <span class="nav-label">Mods</span>
+      </button>
+      <button class="nav-item" data-view="settings" title="Settings">
+        <span class="nav-icon">⚙</span>
+        <span class="nav-label">Settings</span>
+      </button>
+      <button class="nav-item" data-view="updates" title="Updates">
+        <span class="nav-icon">↓</span>
+        <span class="nav-label">Updates</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="theme-toggle" id="themeBtn" title="Toggle theme">◐</button>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-container">
+    <!-- Home View -->
+    <section class="view" id="homeView">
+      <div class="home-background"></div>
+      <div class="home-overlay">
+        <div class="home-content">
+          <h1>SquareLauncher</h1>
+          <button class="btn btn-play" id="playBtn">PLAY</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Profiles View -->
+    <section class="view" id="profilesView" hidden>
+      <div class="view-header">
+        <h2>Profiles</h2>
+        <div class="view-actions">
+          <button class="btn" id="addProfileBtn">+ New Profile</button>
+        </div>
+      </div>
+      <div class="profiles-grid" id="profilesGrid"></div>
+      <div class="empty-state" id="profilesEmpty" hidden>
+        <p>No profiles yet.</p>
+        <p class="muted">Install a version to get started.</p>
+      </div>
+    </section>
+
+    <!-- Mods View -->
+    <section class="view" id="modsView" hidden>
+      <div class="view-header">
+        <h2>Mods</h2>
+        <div class="view-actions">
+          <div class="search-box">
+            <input type="text" id="modsSearch" placeholder="Search mods..." />
+            <select id="modsLoaderFilter">
+              <option value="all">All Loaders</option>
+              <option value="fabric">Fabric</option>
+              <option value="quilt">Quilt</option>
+              <option value="forge">Forge</option>
+              <option value="neoforge">NeoForge</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="mods-grid" id="modsGrid"></div>
+      <div class="empty-state" id="modsEmpty" hidden>
+        <p>No mods found.</p>
+      </div>
+    </section>
+
+    <!-- Settings View -->
+    <section class="view" id="settingsView" hidden>
+      <div class="view-header">
+        <h2>Settings</h2>
+      </div>
+      <div class="settings-panel">
+        <div class="settings-group">
+          <h3>Java Runtime</h3>
+          <div class="field">
+            <label for="jvmInput">Java executable path</label>
+            <div class="field-row">
+              <input id="jvmInput" type="text" placeholder="/path/to/java" spellcheck="false" />
+              <button class="btn btn-icon" id="jvmBrowseBtn" title="Browse">…</button>
+            </div>
+          </div>
+          <div class="field-actions">
+            <button class="btn" id="setJvmBtn">Save</button>
+            <button class="btn" id="testJvmBtn">Test</button>
+            <button class="btn" id="installJdkBtn">Install OpenJDK 26</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3>Player</h3>
+          <div class="field">
+            <label for="usernameInput">Username</label>
+            <input id="usernameInput" type="text" value="Player" spellcheck="false" />
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3>Files</h3>
+          <button class="btn" id="openUserDirBtn">Open launcher directory</button>
+        </div>
+
+        <div class="settings-group">
+          <h3>Manage Profiles</h3>
+          <button class="btn" id="addFromMojangBtn">Add from Mojang (Vanilla/Fabric/Quilt)</button>
+          <button class="btn" id="addZipBtn">Add from ZIP package</button>
+          <button class="btn" id="addForgeBtn">Add Forge/NeoForge</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Updates View -->
+    <section class="view" id="updatesView" hidden>
+      <div class="view-header">
+        <h2>Updates</h2>
+      </div>
+      <div class="updates-panel">
+        <div class="update-info" id="updateInfo">
+          <p>Checking for updates...</p>
+        </div>
+        <button class="btn" id="checkUpdateBtn" hidden>Check for updates</button>
+        <button class="btn btn-accent" id="installUpdateBtn" hidden>Install Update</button>
+      </div>
+    </section>
+
+    <!-- Console Output -->
+    <section class="log-panel">
+      <div class="log-panel-header">
+        <span>Console</span>
+        <button class="btn btn-ghost btn-small" id="clearLogBtn">Clear</button>
+      </div>
+      <pre class="log-output" id="logOutput"></pre>
+    </section>
+  </main>
+
+  <!-- Modals -->
+
+  <!-- Mod details and installation modal -->
+  <div class="modal-backdrop" id="modModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modModalTitle">Mod details</h3>
+        <button class="btn btn-icon" data-close="modModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="mod-detail-header">
+          <img id="modModalIcon" class="mod-detail-icon" alt="" />
+          <div>
+            <p id="modModalDescription" class="mod-detail-description"></p>
+            <p id="modModalStats" class="muted"></p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="modProfileSelect">Install to profile</label>
+          <select id="modProfileSelect"></select>
+        </div>
+        <div class="field">
+          <label for="modVersionSelect">Mod version</label>
+          <select id="modVersionSelect"><option>Choose a profile first</option></select>
+        </div>
+        <p id="modInstallStatus" class="muted"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-close="modModal">Cancel</button>
+        <button class="btn btn-accent" id="modInstallBtn" disabled>Install Mod</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Add from Mojang modal -->
+  <div class="modal-backdrop" id="mojangModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Install Minecraft Version</h3>
+        <button class="btn btn-icon" data-close="mojangModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted">Fetch official assets from Mojang and optionally layer a mod loader.</p>
+        <div class="field">
+          <label>Loader Type</label>
+          <div class="loader-toggle" id="loaderToggle">
+            <button type="button" class="loader-option selected" data-loader="vanilla">Vanilla</button>
+            <button type="button" class="loader-option" data-loader="fabric">Fabric</button>
+            <button type="button" class="loader-option" data-loader="quilt">Quilt</button>
+            <button type="button" class="loader-option" data-loader="forge">Forge</button>
+            <button type="button" class="loader-option" data-loader="neoforge">NeoForge</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Version Type</label>
+          <select id="versionTypeSelect">
+            <option value="release" selected>Releases</option>
+            <option value="snapshot">Snapshots</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Version</label>
+          <select id="versionSelect"><option>Loading…</option></select>
+        </div>
+        <div class="field" id="loaderVersionField" hidden>
+          <label id="loaderVersionLabel">Loader Version</label>
+          <select id="loaderVersionSelect"><option>Loading…</option></select>
+        </div>
+        <div class="field">
+          <label>Display Name</label>
+          <input id="mojangNameInput" type="text" placeholder="e.g. Fabric 1.20.1" />
+        </div>
+        <div class="progress-row" id="mojangProgress" hidden>
+          <div class="progress-track"><div class="progress-fill" id="mojangProgressFill"></div></div>
+          <span class="muted" id="mojangProgressLabel"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-close="mojangModal">Cancel</button>
+        <button class="btn btn-accent" id="mojangInstallBtn">Install</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add from ZIP modal -->
+  <div class="modal-backdrop" id="zipModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add from ZIP package</h3>
+        <button class="btn btn-icon" data-close="zipModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>ZIP File</label>
+          <div class="field-row">
+            <input id="zipPathInput" type="text" readonly placeholder="Choose a .zip file…" />
+            <button class="btn btn-icon" id="zipBrowseBtn">…</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Profile Name</label>
+          <input id="zipNameInput" type="text" placeholder="e.g. My Custom Build" />
+        </div>
+        <div class="progress-row" id="zipProgress" hidden>
+          <div class="progress-track"><div class="progress-fill" id="zipProgressFill"></div></div>
+          <span class="muted" id="zipProgressLabel"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-close="zipModal">Cancel</button>
+        <button class="btn btn-accent" id="zipInstallBtn">Install</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile config modal -->
+  <div class="modal-backdrop" id="profileModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="profileModalTitle">Profile Config</h3>
+        <button class="btn btn-icon" data-close="profileModal">✕</button>
+      </div>
+      <div class="modal-body" id="profileModalBody">
+        <div class="field">
+          <label>Java Override (optional)</label>
+          <input id="profileJvmInput" type="text" placeholder="Leave blank to use default" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="deleteProfileBtn">Delete</button>
+        <button class="btn" data-close="profileModal">Close</button>
+        <button class="btn btn-accent" id="launchProfileBtn">Launch</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

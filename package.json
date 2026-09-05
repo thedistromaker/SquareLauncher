@@ -1,0 +1,66 @@
+{
+  "name": "square-launcher",
+  "version": "3.0.0",
+  "launcherVersion": 33,
+  "description": "A desktop launcher for local Minecraft builds, zip packages, Fabric/Quilt/Forge/NeoForge, and Modrinth mods.",
+  "main": "src/main/main.js",
+  "author": {
+    "name": "thedistromaker",
+    "email": "thedistromaker@github.com"
+  },
+  "homepage": "https://github.com/thedistromaker/SquareLauncher",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "extract-zip": "^2.0.1",
+    "node-fetch": "^2.7.0"
+  },
+  "build": {
+    "appId": "com.thedistromaker.squarelauncher",
+    "productName": "SquareLauncher",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "version.txt"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      },
+      {
+        "from": "version.txt",
+        "to": "version.txt"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": ["deb", "rpm", "AppImage"],
+      "icon": "assets/icon.png",
+      "category": "Game"
+    }
+  }
+}
