@@ -10,6 +10,7 @@
 
 const { fetchJson, fetchText } = require("./http");
 const { mavenCoordToPath } = require("./launchProfile");
+const cache = require("./cacheManager");
 
 const FABRIC_META = "https://meta.fabricmc.net/v2";
 const QUILT_META = "https://meta.quiltmc.org/v3";
@@ -29,25 +30,25 @@ function parseMavenVersions(xml) {
 }
 
 async function listFabricLoaderVersions(mcVersion) {
-  const rows = await getJson(`${FABRIC_META}/versions/loader/${encodeURIComponent(mcVersion)}`);
+  const url = `${FABRIC_META}/versions/loader/${encodeURIComponent(mcVersion)}`;
+  const rows = await cache.cachedLoaderJson(`fabric_versions_${mcVersion}`, url);
   return rows.map((r) => ({ version: r.loader.version, stable: !!r.loader.stable }));
 }
 
 async function listQuiltLoaderVersions(mcVersion) {
-  const rows = await getJson(`${QUILT_META}/versions/loader/${encodeURIComponent(mcVersion)}`);
+  const url = `${QUILT_META}/versions/loader/${encodeURIComponent(mcVersion)}`;
+  const rows = await cache.cachedLoaderJson(`quilt_versions_${mcVersion}`, url);
   return rows.map((r) => ({ version: r.loader.version, stable: !!r.loader.stable }));
 }
 
 async function getFabricProfile(mcVersion, loaderVersion) {
-  return getJson(
-    `${FABRIC_META}/versions/loader/${encodeURIComponent(mcVersion)}/${encodeURIComponent(loaderVersion)}/profile/json`
-  );
+  const url = `${FABRIC_META}/versions/loader/${encodeURIComponent(mcVersion)}/${encodeURIComponent(loaderVersion)}/profile/json`;
+  return cache.cachedLoaderJson(`fabric_profile_${mcVersion}_${loaderVersion}`, url);
 }
 
 async function getQuiltProfile(mcVersion, loaderVersion) {
-  return getJson(
-    `${QUILT_META}/versions/loader/${encodeURIComponent(mcVersion)}/${encodeURIComponent(loaderVersion)}/profile/json`
-  );
+  const url = `${QUILT_META}/versions/loader/${encodeURIComponent(mcVersion)}/${encodeURIComponent(loaderVersion)}/profile/json`;
+  return cache.cachedLoaderJson(`quilt_profile_${mcVersion}_${loaderVersion}`, url);
 }
 
 async function pickLatestLoaderVersion(kind, mcVersion) {
@@ -86,7 +87,7 @@ async function resolveLoader(kind, mcVersion, requestedLoaderVersion) {
 }
 
 async function listForgeVersions(mcVersion) {
-  const xml = await fetchText(FORGE_META);
+  const xml = await cache.cachedLoaderText("forge_maven_metadata", FORGE_META);
   const prefix = `${mcVersion}-`;
   return parseMavenVersions(xml)
     .filter((v) => v.startsWith(prefix))
@@ -103,7 +104,7 @@ function neoForgePrefix(mcVersion) {
 }
 
 async function listNeoForgeVersions(mcVersion) {
-  const xml = await fetchText(NEOFORGE_META);
+  const xml = await cache.cachedLoaderText("neoforge_maven_metadata", NEOFORGE_META);
   const prefix = neoForgePrefix(mcVersion);
   if (!prefix) return [];
   return parseMavenVersions(xml)

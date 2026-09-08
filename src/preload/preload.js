@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld("api", {
   openJavaFolder: (jvmPath) => ipcRenderer.invoke("java:openFolder", jvmPath),
   chooseJavaFile: () => ipcRenderer.invoke("java:chooseFile"),
   installJdk26: () => ipcRenderer.invoke("java:installJdk26"),
-  installJdk: (version) => ipcRenderer.invoke("java:installJdk", version),
+  installJdk: (version, forceReinstall) => ipcRenderer.invoke("java:installJdk", version, forceReinstall),
 
   // files directory
   openUserDir: () => ipcRenderer.invoke("system:openUserDir"),
@@ -30,6 +30,14 @@ contextBridge.exposeInMainWorld("api", {
   saveSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
   setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
   setUserDir: (newDir) => ipcRenderer.invoke("settings:setUserDir", newDir),
+  migrateUserDir: (newDir) => ipcRenderer.invoke("settings:migrateUserDir", newDir),
+
+  // caching
+  getCacheStats: () => ipcRenderer.invoke("cache:getStats"),
+  clearCache: (category) => ipcRenderer.invoke("cache:clear", category),
+
+  // homepage / external links
+  openHomepage: () => ipcRenderer.invoke("system:openHomepage"),
 
   // file selection
   selectFile: (options) => ipcRenderer.invoke("file:select", options),

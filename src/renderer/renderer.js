@@ -77,10 +77,23 @@ document.querySelectorAll("[data-close]").forEach((btn) => {
 // ============================================================================
 // Theme Toggle
 // ============================================================================
-el("themeBtn")?.addEventListener("click", () => {
+function toggleTheme() {
   document.body.classList.toggle("light");
   state.settings.theme = document.body.classList.contains("light") ? "light" : "dark";
-  window.api?.saveSettings?.(state.settings);
+  window.api?.saveSettings?.({ theme: state.settings.theme });
+}
+el("themeBtn")?.addEventListener("click", toggleTheme);
+el("themeToggleSettingsBtn")?.addEventListener("click", toggleTheme);
+
+// ============================================================================
+// Brand mark -> homepage
+// ============================================================================
+el("brandHomeBtn")?.addEventListener("click", async () => {
+  try {
+    await window.api.openHomepage();
+  } catch (err) {
+    log(`Could not open homepage: ${err.message}\n`);
+  }
 });
 
 // ============================================================================
@@ -446,20 +459,114 @@ el("modInstallBtn")?.addEventListener("click", async () => {
 });
 
 // ============================================================================
-// SETTINGS VIEW
+// SETTINGS VIEW (menu-based: General / Files / Runtimes / Caching)
 // ============================================================================
+function showSettingsTab(tabName) {
+  document.querySelectorAll(".settings-tab").forEach((t) => (t.hidden = true));
+  const tab = el(`settingsTab-${tabName}`);
+  if (tab) tab.hidden = false;
+
+  document.querySelectorAll(".settings-nav-item").forEach((item) => {
+    item.classList.toggle("active", item.dataset.settingsTab === tabName);
+  });
+
+  if (tabName === "files") initFilesTab();
+  else if (tabName === "runtimes") initRuntimesTab();
+  else if (tabName === "caching") initCachingTab();
+}
+
+document.querySelectorAll(".settings-nav-item").forEach((btn) => {
+  btn.addEventListener("click", () => showSettingsTab(btn.dataset.settingsTab));
+});
+
 async function initSettingsView() {
   const usernameInput = el("usernameInput");
-  const jvmInput = el("jvmInput");
-  
   try {
     state.registry = await window.api.scanRegistry();
     state.settings.jvmPath = state.registry.default_jvm || "";
-    
     if (usernameInput) usernameInput.value = state.settings.username;
-    if (jvmInput) jvmInput.value = state.settings.jvmPath;
   } catch (err) {
     log(`Error loading settings: ${err.message}\n`);
+  }
+  // Default to the General tab whenever Settings is opened.
+  showSettingsTab("general");
+}
+
+el("usernameInput")?.addEventListener("change", async (event) => {
+  const username = event.target.value.trim() || "Player";
+  state.settings.username = username;
+  event.target.value = username;
+  try {
+    await window.api.saveSettings({ username });
+  } catch (err) {
+    log(`Error saving username: ${err.message}\n`);
+  }
+});
+
+// ---- Files tab -------------------------------------------------------
+async function initFilesTab() {
+  const label = el("currentUserDirLabel");
+  if (label) {
+    try {
+      const info = await window.api.getRegistryInfo();
+      label.textContent = `Current directory: ${info.userDir}`;
+    } catch (err) {
+      label.textContent = "Could not determine the current launcher directory.";
+    }
+  }
+  const status = el("migrateStatus");
+  if (status) status.textContent = "";
+  const input = el("migrateDirInput");
+  if (input) input.value = "";
+}
+
+el("openUserDirBtn")?.addEventListener("click", async () => {
+  try {
+    await window.api.openUserDirectory();
+  } catch (err) {
+    log(`Error opening directory: ${err.message}\n`);
+  }
+});
+
+el("migrateBrowseBtn")?.addEventListener("click", async () => {
+  try {
+    const dir = await window.api.selectFile({ properties: ["openDirectory", "createDirectory"] });
+    if (dir) el("migrateDirInput").value = dir;
+  } catch (err) {
+    log(`Error selecting directory: ${err.message}\n`);
+  }
+});
+
+el("migrateStartBtn")?.addEventListener("click", async () => {
+  const status = el("migrateStatus");
+  const newDir = el("migrateDirInput")?.value;
+  if (!newDir) {
+    if (status) status.textContent = "Choose a destination folder first.";
+    return;
+  }
+  if (!confirm(`Migrate all launcher files to:\n${newDir}\n\nSquareLauncher will need a restart afterward. Continue?`)) {
+    return;
+  }
+  if (status) status.textContent = "Migrating… this can take a while for large caches.";
+  try {
+    const result = await window.api.migrateUserDir(newDir);
+    if (status) status.textContent = `Migrated to ${result.newDir}. Please restart SquareLauncher.`;
+    log(`Config migrated to ${result.newDir}. Restart SquareLauncher to finish.\n`);
+  } catch (err) {
+    if (status) status.textContent = `Migration failed: ${err.message}`;
+    log(`Migration error: ${err.message}\n`);
+  }
+});
+
+// ---- Runtimes tab ------------------------------------------------------
+async function initRuntimesTab() {
+  const jvmInput = el("jvmInput");
+  try {
+    state.registry = await window.api.scanRegistry();
+    state.settings.jvmPath = state.registry.default_jvm || "";
+    if (jvmInput) jvmInput.value = state.settings.jvmPath;
+  } catch (err) {
+    log(`Error loading runtime settings: ${err.message}\n`);
   }
 }
 
@@ -501,23 +608,100 @@ el("jvmBrowseBtn")?.addEventListener("click", async () => {
   }
 });
 
-el("usernameInput")?.addEventListener("change", async (event) => {
-  const username = event.target.value.trim() || "Player";
-  state.settings.username = username;
-  event.target.value = username;
+el("installJdkBtn")?.addEventListener("click", async () => {
+  const version = el("jdkVersionSelect")?.value || "26";
+  const force = !!el("jdkForceReinstall")?.checked;
   try {
-    await window.api.saveSettings({ username });
+    log(`Starting OpenJDK ${version} install...\n`);
+    await window.api.installJdk(version, force);
   } catch (err) {
-    log(`Error saving username: ${err.message}\n`);
+    log(`JDK installation error: ${err.message}\n`);
   }
 });
 
-el("installJdkBtn")?.addEventListener("click", async () => {
+// ---- Caching tab -------------------------------------------------------
+function formatCacheSize(bytes) {
+  return formatBytes(Number(bytes) || 0);
+}
+
+async function refreshCacheStats() {
   try {
-    log("Starting OpenJDK 26 download...\n");
-    await window.api.installJdk("26");
+    const stats = await window.api.getCacheStats();
+    const libStat = el("cacheLibrariesStat");
+    const assetStat = el("cacheAssetsStat");
+    const totalStat = el("cacheTotalStat");
+    if (libStat) libStat.textContent = `${formatCacheSize(stats.libraries.bytes)} across ${stats.libraries.files} file(s).`;
+    if (assetStat) assetStat.textContent = `${formatCacheSize(stats.assets.bytes)} across ${stats.assets.files} file(s).`;
+    if (totalStat) totalStat.textContent = `${formatCacheSize(stats.total.bytes)} total across ${stats.total.files} file(s), including metadata and installers.`;
   } catch (err) {
-    log(`JDK installation error: ${err.message}\n`);
+    log(`Error loading cache stats: ${err.message}\n`);
+  }
+}
+
+async function initCachingTab() {
+  try {
+    const settings = await window.api.getSettings();
+    const caching = settings.caching || {};
+    el("cacheCheckVersions").checked = caching.checkVersions !== false;
+    el("cacheVersionsTTL").value = caching.versionsTTLHours ?? 24;
+    el("cacheModloaders").checked = caching.modloaders !== false;
+    el("cacheModloaderTTL").value = caching.modloaderTTLHours ?? 12;
+    el("cacheLibraries").checked = caching.libraries !== false;
+    el("cacheAssets").checked = caching.assets !== false;
+  } catch (err) {
+    log(`Error loading caching settings: ${err.message}\n`);
+  }
+  await refreshCacheStats();
+}
+
+async function saveCachingSettings() {
+  const caching = {
+    checkVersions: !!el("cacheCheckVersions")?.checked,
+    versionsTTLHours: Number(el("cacheVersionsTTL")?.value) || 24,
+    modloaders: !!el("cacheModloaders")?.checked,
+    modloaderTTLHours: Number(el("cacheModloaderTTL")?.value) || 12,
+    libraries: !!el("cacheLibraries")?.checked,
+    assets: !!el("cacheAssets")?.checked,
+  };
+  try {
+    await window.api.saveSettings({ caching });
+  } catch (err) {
+    log(`Error saving caching settings: ${err.message}\n`);
+  }
+}
+
+["cacheCheckVersions", "cacheVersionsTTL", "cacheModloaders", "cacheModloaderTTL", "cacheLibraries", "cacheAssets"].forEach((id) => {
+  el(id)?.addEventListener("change", saveCachingSettings);
+});
+
+el("clearLibrariesCacheBtn")?.addEventListener("click", async () => {
+  try {
+    await window.api.clearCache("libraries");
+    log("Cleared library cache.\n");
+    await refreshCacheStats();
+  } catch (err) {
+    log(`Error clearing library cache: ${err.message}\n`);
+  }
+});
+
+el("clearAssetsCacheBtn")?.addEventListener("click", async () => {
+  try {
+    await window.api.clearCache("assets");
+    log("Cleared asset cache.\n");
+    await refreshCacheStats();
+  } catch (err) {
+    log(`Error clearing asset cache: ${err.message}\n`);
+  }
+});
+
+el("clearAllCacheBtn")?.addEventListener("click", async () => {
+  if (!confirm("Clear all caches? Future installs will re-download everything from scratch.")) return;
+  try {
+    await window.api.clearCache("all");
+    log("Cleared all caches.\n");
+    await refreshCacheStats();
+  } catch (err) {
+    log(`Error clearing caches: ${err.message}\n`);
   }
 });
 
@@ -756,7 +940,7 @@ async function init() {
   // Start with home view
   showView("home");
   
-  log("SquareLauncher 3.0 ready.\n");
+  //log("SquareLauncher 3.0 ready.\n");
 }
 
 // Wait for API to be ready

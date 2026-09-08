@@ -14,10 +14,10 @@
   <!-- Sidebar Navigation -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="brand">
+      <button type="button" class="brand" id="brandHomeBtn" title="Open SquareLauncher homepage">
         <span class="brand-mark">▢</span>
-        <span class="brand-name">SQ</span>
-      </div>
+        <span class="brand-name">SquareLauncher</span>
+      </button>
     </div>
     
     <nav class="sidebar-nav">
@@ -30,7 +30,7 @@
         <span class="nav-label">Profiles</span>
       </button>
       <button class="nav-item" data-view="mods" title="Mods">
-        <span class="nav-icon">M</span>
+        <span class="nav-icon">+</span>
         <span class="nav-label">Mods</span>
       </button>
       <button class="nav-item" data-view="settings" title="Settings">
@@ -104,41 +104,177 @@
       <div class="view-header">
         <h2>Settings</h2>
       </div>
-      <div class="settings-panel">
-        <div class="settings-group">
-          <h3>Java Runtime</h3>
-          <div class="field">
-            <label for="jvmInput">Java executable path</label>
-            <div class="field-row">
-              <input id="jvmInput" type="text" placeholder="/path/to/java" spellcheck="false" />
-              <button class="btn btn-icon" id="jvmBrowseBtn" title="Browse">…</button>
+      <div class="settings-shell">
+        <nav class="settings-nav">
+          <button class="settings-nav-item active" data-settings-tab="general">General</button>
+          <button class="settings-nav-item" data-settings-tab="files">Files</button>
+          <button class="settings-nav-item" data-settings-tab="runtimes">Runtimes</button>
+          <button class="settings-nav-item" data-settings-tab="caching">Caching</button>
+        </nav>
+
+        <div class="settings-content">
+          <!-- General -->
+          <div class="settings-tab" id="settingsTab-general">
+            <div class="settings-panel">
+              <div class="settings-group">
+                <h3>Player</h3>
+                <div class="field">
+                  <label for="usernameInput">Username</label>
+                  <input id="usernameInput" type="text" value="Player" spellcheck="false" />
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Appearance</h3>
+                <div class="field-actions">
+                  <button class="btn" id="themeToggleSettingsBtn">Toggle Light / Dark theme</button>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Manage Profiles</h3>
+                <div class="field-actions">
+                  <button class="btn" id="addFromMojangBtn">Add from Mojang (Vanilla/Fabric/Quilt)</button>
+                  <button class="btn" id="addZipBtn">Add from ZIP package</button>
+                  <button class="btn" id="addForgeBtn">Add Forge/NeoForge</button>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="field-actions">
-            <button class="btn" id="setJvmBtn">Save</button>
-            <button class="btn" id="testJvmBtn">Test</button>
-            <button class="btn" id="installJdkBtn">Install OpenJDK 26</button>
+
+          <!-- Files -->
+          <div class="settings-tab" id="settingsTab-files" hidden>
+            <div class="settings-panel">
+              <div class="settings-group">
+                <h3>Launcher Directory</h3>
+                <p class="muted" id="currentUserDirLabel">Loading current directory…</p>
+                <div class="field-actions">
+                  <button class="btn" id="openUserDirBtn">Open launcher directory</button>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Migrate Config to New Directory</h3>
+                <p class="muted">
+                  Copies every version, JDK, cache, and setting into a new empty folder, then switches
+                  the launcher to use it. Restart SquareLauncher after migrating to finish the switch.
+                </p>
+                <div class="field">
+                  <label>New Directory</label>
+                  <div class="field-row">
+                    <input id="migrateDirInput" type="text" readonly placeholder="Choose an empty folder…" />
+                    <button class="btn btn-icon" id="migrateBrowseBtn" title="Browse">…</button>
+                  </div>
+                </div>
+                <div class="field-actions">
+                  <button class="btn btn-accent" id="migrateStartBtn">Migrate</button>
+                </div>
+                <p class="muted" id="migrateStatus"></p>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="settings-group">
-          <h3>Player</h3>
-          <div class="field">
-            <label for="usernameInput">Username</label>
-            <input id="usernameInput" type="text" value="Player" spellcheck="false" />
+          <!-- Runtimes -->
+          <div class="settings-tab" id="settingsTab-runtimes" hidden>
+            <div class="settings-panel">
+              <div class="settings-group">
+                <h3>Java Runtime</h3>
+                <div class="field">
+                  <label for="jvmInput">Java executable path</label>
+                  <div class="field-row">
+                    <input id="jvmInput" type="text" placeholder="/path/to/java" spellcheck="false" />
+                    <button class="btn btn-icon" id="jvmBrowseBtn" title="Browse">…</button>
+                  </div>
+                </div>
+                <div class="field-actions">
+                  <button class="btn" id="setJvmBtn">Save</button>
+                  <button class="btn" id="testJvmBtn">Test</button>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Install a JDK</h3>
+                <div class="field">
+                  <label for="jdkVersionSelect">JDK version</label>
+                  <select id="jdkVersionSelect">
+                    <option value="26" selected>OpenJDK 26</option>
+                    <option value="25">OpenJDK 25</option>
+                    <option value="21">OpenJDK 21</option>
+                    <option value="17">OpenJDK 17</option>
+                    <option value="8">OpenJDK 8</option>
+                  </select>
+                </div>
+                <label class="checkbox-field">
+                  <input type="checkbox" id="jdkForceReinstall" />
+                  Force re-download even if this JDK is already installed
+                </label>
+                <div class="field-actions">
+                  <button class="btn" id="installJdkBtn">Download &amp; Install</button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="settings-group">
-          <h3>Files</h3>
-          <button class="btn" id="openUserDirBtn">Open launcher directory</button>
-        </div>
+          <!-- Caching -->
+          <div class="settings-tab" id="settingsTab-caching" hidden>
+            <div class="settings-panel">
+              <div class="settings-group">
+                <h3>Version Checking</h3>
+                <label class="checkbox-field">
+                  <input type="checkbox" id="cacheCheckVersions" />
+                  Cache the Mojang version manifest &amp; version metadata
+                </label>
+                <div class="field">
+                  <label for="cacheVersionsTTL">Cache duration (hours)</label>
+                  <input id="cacheVersionsTTL" type="number" min="1" />
+                </div>
+              </div>
 
-        <div class="settings-group">
-          <h3>Manage Profiles</h3>
-          <button class="btn" id="addFromMojangBtn">Add from Mojang (Vanilla/Fabric/Quilt)</button>
-          <button class="btn" id="addZipBtn">Add from ZIP package</button>
-          <button class="btn" id="addForgeBtn">Add Forge/NeoForge</button>
+              <div class="settings-group">
+                <h3>Mod Loader Metadata</h3>
+                <label class="checkbox-field">
+                  <input type="checkbox" id="cacheModloaders" />
+                  Cache Fabric / Quilt / Forge / NeoForge version lists &amp; installers
+                </label>
+                <div class="field">
+                  <label for="cacheModloaderTTL">Cache duration (hours)</label>
+                  <input id="cacheModloaderTTL" type="number" min="1" />
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Library Caching</h3>
+                <label class="checkbox-field">
+                  <input type="checkbox" id="cacheLibraries" />
+                  Share downloaded libraries across every profile instead of re-downloading them
+                </label>
+                <p class="muted" id="cacheLibrariesStat">—</p>
+                <div class="field-actions">
+                  <button class="btn" id="clearLibrariesCacheBtn">Clear library cache</button>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>Asset Caching</h3>
+                <label class="checkbox-field">
+                  <input type="checkbox" id="cacheAssets" />
+                  Cache game assets per Minecraft version instead of re-downloading on every install
+                </label>
+                <p class="muted" id="cacheAssetsStat">—</p>
+                <div class="field-actions">
+                  <button class="btn" id="clearAssetsCacheBtn">Clear asset cache</button>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <h3>All Caches</h3>
+                <p class="muted" id="cacheTotalStat">—</p>
+                <div class="field-actions">
+                  <button class="btn btn-danger" id="clearAllCacheBtn">Clear all caches</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -209,7 +345,6 @@
         <button class="btn btn-icon" data-close="mojangModal">✕</button>
       </div>
       <div class="modal-body">
-        <p class="muted">Fetch official assets from Mojang and optionally layer a mod loader.</p>
         <div class="field">
           <label>Loader Type</label>
           <div class="loader-toggle" id="loaderToggle">

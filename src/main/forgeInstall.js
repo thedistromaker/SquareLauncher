@@ -18,6 +18,20 @@ const { spawn } = require("child_process");
 const extract = require("extract-zip");
 const { fetchUA } = require("./http");
 const { forgeInstallerUrl, neoForgeInstallerUrl } = require("./loaderMeta");
+const { mavenCoordToPath } = require("./launchProfile");
+const cache = require("./cacheManager");
+
+// Repos to try, in order, when a library from the final profile.json isn't
+// on disk after the official installer runs and doesn't carry its own
+// download URL. Covers vanilla, Forge, NeoForge, and generic Maven Central
+// artifacts (jopt-simple, asm, bootstraplauncher, etc. all live on one of
+// these).
+const FALLBACK_REPOS = [
+  "https://libraries.minecraft.net/",
+  "https://maven.minecraftforge.net/",
+  "https://maven.neoforged.net/releases/",
+  "https://repo1.maven.org/maven2/",
+];
 
 async function downloadToFile(url, destPath) {
   await fsp.mkdir(path.dirname(destPath), { recursive: true });
@@ -95,6 +109,78 @@ function copyDirContents(src, dest) {
 }
 
 /**
+ * Safety net for the case where the official installer's own network
+ * fetch of one of its bootstrap/runtime dependencies (jopt-simple, asm,
+ * cpw.mods.bootstraplauncher, etc.) silently drops a library — the
+ * installer can exit 0 while still leaving the game unable to launch
+ * with a `java.lang.module.FindException`.
+ *
+ * After the installer runs, we walk every library the FINAL produced
+ * profile.json actually needs and make sure each one exists on disk in
+ * this profile's libraries folder, fetching anything missing from its
+ * own declared URL (through the shared cache when possible) or, failing
+ * that, from a short list of well-known Maven repos.
+ */
+async function tryDownloadFromRepos(relPath, destPath, say) {
+  for (const repo of FALLBACK_REPOS) {
+    const url = repo + relPath;
+    try {
+      await downloadToFile(url, destPath);
+      return true;
+    } catch {
+      /* try the next repo */
+    }
+  }
+  say(`[repair] Could not find ${relPath} on any known repository.\n`);
+  return false;
+}
+
+async function repairMissingLibraries(profile, librariesDir, say) {
+  const libs = Array.isArray(profile.libraries) ? profile.libraries : [];
+  let repaired = 0;
+  for (const lib of libs) {
+    if (!lib || !lib.name) continue;
+    if (/:natives-/.test(lib.name)) continue; // handled separately as natives, not classpath jars
+
+    let relPath = null;
+    let url = null;
+    let sha1 = null;
+
+    if (lib.downloads && lib.downloads.artifact && lib.downloads.artifact.path) {
+      relPath = lib.downloads.artifact.path;
+      url = lib.downloads.artifact.url || null;
+      sha1 = lib.downloads.artifact.sha1 || null;
+    } else {
+      relPath = mavenCoordToPath(lib.name);
+      if (lib.url) url = lib.url.replace(/\/?$/, "/") + relPath;
+    }
+    if (!relPath) continue;
+
+    const destPath = path.join(librariesDir, relPath);
+    if (fs.existsSync(destPath)) continue;
+
+    say(`[repair] ${lib.name} is missing on disk - fetching it directly…\n`);
+    let ok = false;
+    if (url) {
+      try {
+        if (sha1) {
+          const cachedPath = await cache.ensureLibraryCached(url, relPath, sha1);
+          cache.linkOrCopy(cachedPath, destPath);
+        } else {
+          await downloadToFile(url, destPath);
+        }
+        ok = true;
+      } catch {
+        ok = false;
+      }
+    }
+    if (!ok) ok = await tryDownloadFromRepos(relPath, destPath, say);
+    if (ok) repaired += 1;
+  }
+  return repaired;
+}
+
+/**
  * @param {"forge"|"neoforge"} kind
  * @param {string} mcVersion
  * @param {string} loaderVersion  full maven version (forge: 1.20.1-47.3.0, neo: 21.1.66)
@@ -112,8 +198,12 @@ async function installForgeLike({ kind, mcVersion, loaderVersion, destDir, javaP
   const url = kind === "neoforge" ? neoForgeInstallerUrl(loaderVersion) : forgeInstallerUrl(loaderVersion);
   const installerJar = path.join(destDir, `.${kind}-installer.jar`);
   notify("loader_resolve", { label: kind });
-  say(`[${kind}] Downloading installer ${loaderVersion}\n`);
-  await downloadToFile(url, installerJar);
+  say(`[${kind}] Fetching installer ${loaderVersion}\n`);
+  // Installer jars for a published loader version never change, so they're
+  // cached indefinitely and only ever downloaded once across every profile.
+  const cachedInstaller = await cache.ensureInstallerCached(kind, loaderVersion, url);
+  fs.mkdirSync(path.dirname(installerJar), { recursive: true });
+  fs.copyFileSync(cachedInstaller, installerJar);
 
   const extractDir = path.join(destDir, `.${kind}-installer-extract`);
   if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
@@ -181,6 +271,13 @@ async function installForgeLike({ kind, mcVersion, loaderVersion, destDir, javaP
   }
 
   const finalProfile = JSON.parse(fs.readFileSync(path.join(destDir, "profile.json"), "utf-8"));
+
+  say(`[${kind}] Verifying every required library is present on disk…\n`);
+  const repairedCount = await repairMissingLibraries(finalProfile, path.join(destDir, "libraries"), say);
+  if (repairedCount > 0) {
+    say(`[${kind}] Repaired ${repairedCount} librar${repairedCount === 1 ? "y" : "ies"} the installer didn't leave behind.\n`);
+  }
+
   return {
     profile: finalProfile,
     loaderVersion,

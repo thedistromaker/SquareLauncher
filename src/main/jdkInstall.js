@@ -62,11 +62,26 @@ function extractTarGz(archivePath, destDir) {
   });
 }
 
-async function installJdkVersion(baseDir, version, onLog, onProgress) {
+function jdkBinaryPath(destDir) {
+  if (process.platform === "win32") return path.join(destDir, "bin", "java.exe");
+  if (process.platform === "darwin") return path.join(destDir, "Contents", "Home", "bin", "java");
+  return path.join(destDir, "bin", "java");
+}
+
+async function installJdkVersion(baseDir, version, onLog, onProgress, forceReinstall = false) {
   const { url, ext } = jdkDownloadUrl(version);
   const destDir = path.join(baseDir, `jdk-${version}`);
   const archivePath = path.join(baseDir, `jdk${version}_download${ext}`);
   const tempExtract = path.join(baseDir, "jdk_temp_extract");
+
+  // Aggressive caching: a JDK that's already installed and runnable never
+  // needs to be re-downloaded just because "Install" was clicked again.
+  const existingBinary = jdkBinaryPath(destDir);
+  if (!forceReinstall && fs.existsSync(existingBinary)) {
+    onLog && onLog(`[Download] OpenJDK ${version} is already installed - skipping download.\n`);
+    onProgress && onProgress({ phase: "done", percent: 100, cached: true });
+    return existingBinary;
+  }
 
   if (fs.existsSync(destDir)) fs.rmSync(destDir, { recursive: true, force: true });
   if (fs.existsSync(tempExtract)) fs.rmSync(tempExtract, { recursive: true, force: true });
@@ -95,10 +110,7 @@ async function installJdkVersion(baseDir, version, onLog, onProgress) {
   if (fs.existsSync(tempExtract)) fs.rmSync(tempExtract, { recursive: true, force: true });
   if (fs.existsSync(archivePath)) fs.rmSync(archivePath);
 
-  let binaryPath;
-  if (process.platform === "win32") binaryPath = path.join(destDir, "bin", "java.exe");
-  else if (process.platform === "darwin") binaryPath = path.join(destDir, "Contents", "Home", "bin", "java");
-  else binaryPath = path.join(destDir, "bin", "java");
+  const binaryPath = jdkBinaryPath(destDir);
 
   onProgress && onProgress({ phase: "done", percent: 100 });
   onLog && onLog(`[Download] Finished! Auto-configured runtime path pointer to: ${binaryPath}\n`);

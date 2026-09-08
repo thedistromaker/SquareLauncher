@@ -12,6 +12,8 @@ const loaderMeta = require("./loaderMeta");
 const { testJava, launchVersion } = require("./gameLauncher");
 const { installJdkVersion } = require("./jdkInstall");
 const msAuth = require("./msAuth");
+const cacheManager = require("./cacheManager");
+const pkg = require("../../package.json");
 
 // Directory where fetched/installed versions (zips, downloaded assets,
 // libraries, etc.) are stored.
@@ -56,6 +58,16 @@ if (!fs.existsSync(USER_DIR)) fs.mkdirSync(USER_DIR, { recursive: true });
 const BASE_DIR = USER_DIR;
 const registry = makeRegistry(BASE_DIR);
 const store = new Store({ name: "square-launcher-settings" });
+
+// The cache manager is a singleton used by every installer module
+// (mojangAssets, loaderMeta, forgeInstall). It reads its on/off switches
+// and TTLs live from the settings store, so toggling a checkbox in
+// Settings > Caching takes effect on the very next install with no
+// restart required.
+cacheManager.init(BASE_DIR, () => {
+  const settings = store.get("settings") || {};
+  return { ...cacheManager.DEFAULT_CACHE_SETTINGS, ...(settings.caching || {}) };
+});
 
 let mainWindow;
 let activeChild = null;
@@ -155,13 +167,14 @@ ipcMain.handle("java:installJdk26", async () => {
   );
 });
 
-ipcMain.handle("java:installJdk", async (_e, version) => {
+ipcMain.handle("java:installJdk", async (_e, version, forceReinstall) => {
   const v = version || "26";
   return installJdkVersion(
     BASE_DIR,
     v,
     (line) => send("log:line", line),
-    (info) => send("jdk:progress", info)
+    (info) => send("jdk:progress", info),
+    !!forceReinstall
   );
 });
 
@@ -193,12 +206,23 @@ ipcMain.handle("system:openUserDir", async () => {
 // App settings
 // ---------------------------------------------------------------------
 ipcMain.handle("settings:get", () => {
-  return store.get("settings") || { theme: "dark", jdkVersion: "26", userDir: USER_DIR };
+  const saved = store.get("settings") || {};
+  return {
+    theme: "dark",
+    jdkVersion: "26",
+    userDir: USER_DIR,
+    username: "Player",
+    ...saved,
+    caching: { ...cacheManager.DEFAULT_CACHE_SETTINGS, ...(saved.caching || {}) },
+  };
 });
 
 ipcMain.handle("settings:set", (_e, patch) => {
   const cur = store.get("settings") || {};
   const merged = { ...cur, ...patch };
+  if (patch && patch.caching) {
+    merged.caching = { ...cacheManager.DEFAULT_CACHE_SETTINGS, ...(cur.caching || {}), ...patch.caching };
+  }
   store.set("settings", merged);
   return merged;
 });
@@ -213,6 +237,56 @@ ipcMain.handle("settings:setUserDir", (_e, newDir) => {
   } catch (err) {
     throw new Error(`Failed to set user directory: ${err.message}`);
   }
+});
+
+// ---------------------------------------------------------------------
+// Migrate config to a new directory
+// ---------------------------------------------------------------------
+// Copies the entire launcher directory (versions, JDKs, caches, and the
+// versions.json registry) into a new, empty folder, then repoints
+// userDirPointer.json at it. The current process keeps using the old
+// directory until restart - callers should prompt the user to restart.
+ipcMain.handle("settings:migrateUserDir", async (_e, newDir) => {
+  if (!newDir || typeof newDir !== "string") throw new Error("Invalid directory.");
+  const resolvedNew = path.resolve(newDir);
+  const resolvedCurrent = path.resolve(USER_DIR);
+  if (resolvedNew === resolvedCurrent) {
+    throw new Error("That is already the current launcher directory.");
+  }
+
+  fs.mkdirSync(resolvedNew, { recursive: true });
+  const existingEntries = fs.readdirSync(resolvedNew);
+  if (existingEntries.length > 0) {
+    throw new Error("The chosen directory isn't empty. Pick an empty folder for the migration.");
+  }
+
+  send("log:line", `\nMigrating launcher files to: ${resolvedNew}\n`);
+  try {
+    fs.cpSync(resolvedCurrent, resolvedNew, { recursive: true });
+  } catch (err) {
+    throw new Error(`Migration failed while copying files: ${err.message}`);
+  }
+
+  fs.mkdirSync(defaultUserDataDir, { recursive: true });
+  fs.writeFileSync(userDirPointerFile, JSON.stringify({ userDir: resolvedNew }, null, 2));
+
+  send("log:line", `Migration complete. Restart SquareLauncher to finish switching to the new directory.\n`);
+  return { newDir: resolvedNew, needsRestart: true };
+});
+
+// ---------------------------------------------------------------------
+// Caching
+// ---------------------------------------------------------------------
+ipcMain.handle("cache:getStats", () => cacheManager.getCacheStats());
+
+ipcMain.handle("cache:clear", (_e, category) => cacheManager.clearCache(category || "all"));
+
+// ---------------------------------------------------------------------
+// Homepage
+// ---------------------------------------------------------------------
+ipcMain.handle("system:openHomepage", async () => {
+  if (pkg.homepage) await shell.openExternal(pkg.homepage);
+  return true;
 });
 
 // ---------------------------------------------------------------------

@@ -116,6 +116,7 @@ def _rewrite(arg: str) -> str:
     out = out.replace("\${auth_access_token}", ACCESS_TOKEN)
     out = out.replace("\${user_type}", USER_TYPE)
     out = out.replace("\${user_properties}", "{}")
+    out = out.replace("\${classpath}", classpath)
     return out
 
 jvm_args = []
@@ -125,6 +126,10 @@ for raw in ${pyList(jvmTemplate)}:
 # Force natives + game dir to this folder even if install-time paths differ.
 jvm_args = [a for a in jvm_args if not a.startswith("-Djava.library.path=")]
 jvm_args.append(f"-Djava.library.path={BASE / 'natives'}")
+
+# Expose Java 21+ modules for Forge compatibility (log4j, etc.)
+jvm_args.append("--add-modules=ALL-SYSTEM")
+jvm_args.append("--add-opens=java.base/java.lang=ALL-UNNAMED")
 
 if sys.platform == "darwin" and "-XstartOnFirstThread" not in jvm_args:
     jvm_args.insert(0, "-XstartOnFirstThread")
