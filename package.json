@@ -55,7 +55,13 @@
       "allowToChangeInstallationDirectory": true
     },
     "mac": {
-      "icon": "assets/icons/icon.png"
+      "icon": "assets/icons/icon.icns"
+    },
+      "dmg": {
+      "background": null,
+      "backgroundColor": "#ffffff",
+      "icon": null,
+      "writeUpdateInfo": false
     },
     "linux": {
       "target": ["deb", "rpm", "AppImage"],
