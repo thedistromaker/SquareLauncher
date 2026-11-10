@@ -6,6 +6,8 @@ const { spawn } = require("child_process");
 const { app, shell } = require("electron");
 const { fetchUA, fetchText } = require("./http");
 
+// The packaged feeds still live on the legacy SquareLauncher repository until
+// a Cuboid release channel exists; 4.0 reports itself as newer than them.
 const REMOTE_VERSION_URL = "https://cdn.jsdelivr.net/gh/thedistromaker/SquareLauncher@main/version.txt";
 const UPDATES_MD = "https://github.com/thedistromaker/SquareLauncher/blob/main/UPDATES.md";
 const RELEASE_DOWNLOAD_BASE = "https://github.com/thedistromaker/SquareLauncher/releases/latest/download";
@@ -32,7 +34,7 @@ function readLocalVersion() {
   } catch {
     /* ignore */
   }
-  return 33;
+  return 40;
 }
 
 async function fetchRemoteVersion() {
@@ -90,8 +92,8 @@ async function downloadAsset(url, destPath, onProgress) {
       received += chunk.length;
       onProgress && onProgress({ received, total, percent: total ? Math.round((received / total) * 100) : null });
     });
-    res.body.pipe(out);
     res.body.on("error", reject);
+    res.body.pipe(out);
     out.on("finish", resolve);
     out.on("error", reject);
   });
@@ -112,7 +114,7 @@ function runPrivileged(cmd, args) {
 async function applyLinuxUpdate(installType, filePath) {
   if (installType === "deb") {
     await runPrivileged("apt", ["install", "-y", filePath]);
-    return "Installed the DEB package. Restart SquareLauncher.";
+    return "Installed the DEB package. Restart Cuboid.";
   }
   if (installType === "rpm") {
     try {
@@ -120,14 +122,14 @@ async function applyLinuxUpdate(installType, filePath) {
     } catch {
       await runPrivileged("rpm", ["-Uvh", filePath]);
     }
-    return "Installed the RPM package. Restart SquareLauncher.";
+    return "Installed the RPM package. Restart Cuboid.";
   }
   throw new Error("Unknown Linux install type.");
 }
 
 async function applyWindowsUpdate(filePath) {
   await shell.openPath(filePath);
-  return "Opened the Windows installer. Follow its prompts to update SquareLauncher.";
+  return "Opened the Windows installer. Follow its prompts to update Cuboid.";
 }
 
 async function checkForUpdate() {
@@ -155,7 +157,7 @@ async function performUpdate(onProgress) {
     return { openedDocs: true, url: UPDATES_MD, reason: `Updates are not supported for ${installType}.` };
   }
   const extension = installType === "nsis" ? "exe" : installType;
-  const dest = path.join(app.getPath("temp"), `SquareLauncher-${archToken()}.${extension}`);
+  const dest = path.join(app.getPath("temp"), `Cuboid-${archToken()}.${extension}`);
   onProgress && onProgress({ phase: "download", percent: 0 });
   await downloadAsset(url, dest, (info) => onProgress && onProgress({ phase: "download", ...info }));
   onProgress && onProgress({ phase: "install", installType });

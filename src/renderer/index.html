@@ -2,442 +2,721 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' file: data: https:; font-src https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" />
-  <title>SquareLauncher</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; img-src 'self' file: data: https:; font-src https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self';"
+  />
+  <title>Cuboid</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="grid-bg"></div>
+  <div class="ambient" aria-hidden="true"></div>
 
-  <!-- Sidebar Navigation -->
+  <!-- ===================== Sidebar ===================== -->
   <aside class="sidebar">
-    <div class="sidebar-header">
-      <button type="button" class="brand" id="brandHomeBtn" title="Open SquareLauncher homepage">
-        <span class="brand-mark">▢</span>
-        <span class="brand-name">SquareLauncher</span>
-      </button>
+    <div class="brand">
+      <img class="brand-logo" src="../../assets/logo.svg" alt="" width="40" height="40" />
+      <div class="brand-text">
+        <span class="brand-name">Cuboid</span>
+        <span class="brand-version" id="brandVersion">4.0</span>
+      </div>
     </div>
-    
-    <nav class="sidebar-nav">
-      <button class="nav-item active" data-view="home" title="Home">
-        <span class="nav-icon">⌂</span>
-        <span class="nav-label">Home</span>
+
+    <nav class="nav" aria-label="Main">
+      <button class="nav-item active" data-view="home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>
+        <span>Home</span>
       </button>
-      <button class="nav-item" data-view="profiles" title="Profiles">
-        <span class="nav-icon">▦</span>
-        <span class="nav-label">Profiles</span>
+      <button class="nav-item" data-view="library">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+        <span>Library</span>
       </button>
-      <button class="nav-item" data-view="mods" title="Mods">
-        <span class="nav-icon">+</span>
-        <span class="nav-label">Mods</span>
+      <button class="nav-item" data-view="discover">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>
+        <span>Discover</span>
       </button>
-      <button class="nav-item" data-view="settings" title="Settings">
-        <span class="nav-icon">⚙</span>
-        <span class="nav-label">Settings</span>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
+        <span>Settings</span>
       </button>
-      <button class="nav-item" data-view="updates" title="Updates">
-        <span class="nav-icon">↓</span>
-        <span class="nav-label">Updates</span>
+      <button class="nav-item" data-view="updates">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 18h14"/></svg>
+        <span>Updates</span>
       </button>
     </nav>
 
-    <div class="sidebar-footer">
-      <button class="theme-toggle" id="themeBtn" title="Toggle theme">◐</button>
+    <div class="sidebar-foot">
+      <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <div class="player-chip" id="playerChip" title="Offline profile">
+        <span class="player-dot"></span>
+        <span id="playerName">Player</span>
+      </div>
     </div>
   </aside>
 
-  <!-- Main Content Area -->
-  <main class="main-container">
-    <!-- Home View -->
-    <section class="view" id="homeView">
-      <div class="home-background"></div>
-      <div class="home-overlay">
-        <div class="home-content">
-          <h1>SquareLauncher</h1>
-          <button class="btn btn-play" id="playBtn">PLAY</button>
-        </div>
+  <!-- ===================== Main ===================== -->
+  <main class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span class="crumb-muted">Cuboid</span>
+        <span class="crumb-sep">/</span>
+        <span id="crumbView">Home</span>
       </div>
-    </section>
+      <div class="topbar-actions">
+        <label class="profile-switch">
+          <span>Profile</span>
+          <select id="activeProfileSelect" aria-label="Active profile"></select>
+        </label>
+      </div>
+    </header>
 
-    <!-- Profiles View -->
-    <section class="view" id="profilesView" hidden>
-      <div class="view-header">
-        <h2>Profiles</h2>
-        <div class="view-actions">
-          <button class="btn" id="addProfileBtn">+ New Profile</button>
-        </div>
-      </div>
-      <div class="profiles-grid" id="profilesGrid"></div>
-      <div class="empty-state" id="profilesEmpty" hidden>
-        <p>No profiles yet.</p>
-        <p class="muted">Install a version to get started.</p>
-      </div>
-    </section>
-
-    <!-- Mods View -->
-    <section class="view" id="modsView" hidden>
-      <div class="view-header">
-        <h2>Mods</h2>
-        <div class="view-actions">
-          <div class="search-box">
-            <input type="text" id="modsSearch" placeholder="Search mods..." />
-            <select id="modsLoaderFilter">
-              <option value="all">All Loaders</option>
-              <option value="fabric">Fabric</option>
-              <option value="quilt">Quilt</option>
-              <option value="forge">Forge</option>
-              <option value="neoforge">NeoForge</option>
-            </select>
+    <div class="workspace" id="workspace">
+      <!-- ================= Home ================= -->
+      <section class="view" id="homeView">
+        <div class="hero">
+          <div class="hero-glow" aria-hidden="true"></div>
+          <div class="hero-copy">
+            <span class="eyebrow">Offline-first Minecraft launcher</span>
+            <h1>Pick a world.<br />Press play.</h1>
+            <p class="hero-sub" id="homeHeroSub">Loading your profiles…</p>
+            <div class="hero-actions">
+              <button class="btn btn-play" id="homePlayBtn">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+                <span>Play</span>
+              </button>
+              <button class="btn btn-secondary" id="homeManageBtn">Manage profiles</button>
+            </div>
+            <p class="hint" id="homeMemoryHint"></p>
+          </div>
+          <div class="hero-mark" aria-hidden="true">
+            <img src="../../assets/logo.svg" alt="" />
           </div>
         </div>
-      </div>
-      <div class="mods-grid" id="modsGrid"></div>
-      <div class="empty-state" id="modsEmpty" hidden>
-        <p>No mods found.</p>
-      </div>
-    </section>
 
-    <!-- Settings View -->
-    <section class="view" id="settingsView" hidden>
-      <div class="view-header">
-        <h2>Settings</h2>
-      </div>
-      <div class="settings-shell">
-        <nav class="settings-nav">
-          <button class="settings-nav-item active" data-settings-tab="general">General</button>
-          <button class="settings-nav-item" data-settings-tab="files">Files</button>
-          <button class="settings-nav-item" data-settings-tab="runtimes">Runtimes</button>
-          <button class="settings-nav-item" data-settings-tab="caching">Caching</button>
-        </nav>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-label">Profiles</span>
+            <span class="stat-value" id="statProfiles">0</span>
+            <span class="stat-sub">installed builds</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Memory</span>
+            <span class="stat-value" id="statMemory">—</span>
+            <span class="stat-sub" id="statMemorySub">allocated to the active profile</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Java</span>
+            <span class="stat-value" id="statJava">—</span>
+            <span class="stat-sub" id="statJavaSub">default runtime</span>
+          </div>
+        </div>
 
-        <div class="settings-content">
-          <!-- General -->
-          <div class="settings-tab" id="settingsTab-general">
-            <div class="settings-panel">
-              <div class="settings-group">
-                <h3>Player</h3>
-                <div class="field">
-                  <label for="usernameInput">Username</label>
-                  <input id="usernameInput" type="text" value="Player" spellcheck="false" />
-                </div>
-              </div>
+        <div class="home-columns">
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Recent profiles</h3>
+              <button class="btn btn-ghost btn-sm" data-goto="library">View all</button>
+            </div>
+            <div class="quick-row" id="homeQuickProfiles"></div>
+          </section>
+          <section class="panel panel-notes">
+            <div class="panel-head"><h3>New in 4.0</h3></div>
+            <ul class="notes">
+              <li><strong>Fresh look &amp; name.</strong> Cuboid replaces the old lime-on-slate theme.</li>
+              <li><strong>Per-profile memory.</strong> Three-dot profile settings with a heap slider capped at RAM − 1024&nbsp;MiB.</li>
+              <li><strong>Dependency aware.</strong> Modrinth installs resolve required dependencies and never stack duplicate mods.</li>
+              <li><strong>Resource packs</strong> in the marketplace, plus drag-and-drop pack import.</li>
+              <li><strong>JDK downloads fixed.</strong> Adoptium Temurin replaces the dead Oracle URLs.</li>
+            </ul>
+          </section>
+        </div>
+      </section>
 
-              <div class="settings-group">
-                <h3>Appearance</h3>
-                <div class="field-actions">
-                  <button class="btn" id="themeToggleSettingsBtn">Toggle Light / Dark theme</button>
-                </div>
-              </div>
+      <!-- ================= Library ================= -->
+      <section class="view" id="libraryView" hidden>
+        <div class="view-head">
+          <div>
+            <h2>Library</h2>
+            <p class="muted">Every installed build, with its own Java, memory and mods.</p>
+          </div>
+          <div class="view-actions">
+            <button class="btn btn-secondary" id="addZipBtn">ZIP package</button>
+            <button class="btn btn-primary" id="addProfileBtn">New profile</button>
+          </div>
+        </div>
+        <div class="profile-grid" id="libraryGrid"></div>
+        <div class="empty-state" id="libraryEmpty" hidden>
+          <img src="../../assets/logo.svg" alt="" width="56" height="56" />
+          <h3>No profiles yet</h3>
+          <p class="muted">Create one from Mojang + a mod loader to get started.</p>
+          <button class="btn btn-primary" id="libraryEmptyAdd">New profile</button>
+        </div>
+      </section>
 
-              <div class="settings-group">
-                <h3>Manage Profiles</h3>
-                <div class="field-actions">
-                  <button class="btn" id="addFromMojangBtn">Add from Mojang (Vanilla/Fabric/Quilt)</button>
-                  <button class="btn" id="addZipBtn">Add from ZIP package</button>
-                  <button class="btn" id="addForgeBtn">Add Forge/NeoForge</button>
-                </div>
-              </div>
+      <!-- ================= Discover ================= -->
+      <section class="view" id="discoverView" hidden>
+        <div class="view-head discover-head">
+          <div>
+            <h2>Discover</h2>
+            <p class="muted" id="discoverSub">Mods and resource packs from Modrinth.</p>
+          </div>
+          <div class="view-actions">
+            <div class="segmented" role="tablist" aria-label="Marketplace type">
+              <button class="seg-btn active" data-market="mod" role="tab" aria-selected="true">Mods</button>
+              <button class="seg-btn" data-market="pack" role="tab" aria-selected="false">Resource packs</button>
             </div>
           </div>
+        </div>
 
-          <!-- Files -->
-          <div class="settings-tab" id="settingsTab-files" hidden>
-            <div class="settings-panel">
-              <div class="settings-group">
-                <h3>Launcher Directory</h3>
-                <p class="muted" id="currentUserDirLabel">Loading current directory…</p>
-                <div class="field-actions">
-                  <button class="btn" id="openUserDirBtn">Open launcher directory</button>
+        <div class="search-row">
+          <div class="search-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input id="discoverSearch" type="search" placeholder="Search Modrinth…" spellcheck="false" />
+          </div>
+          <button class="btn btn-secondary" id="filtersBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+            Filters
+            <span class="badge badge-accent" id="filtersCount" hidden>0</span>
+          </button>
+        </div>
+
+        <div class="chip-row" id="activeFilterChips"></div>
+        <div class="results-grid" id="discoverGrid"></div>
+        <div class="empty-state" id="discoverEmpty" hidden>
+          <h3>Nothing found</h3>
+          <p class="muted" id="discoverEmptyText">Try a different search or loosen your filters.</p>
+        </div>
+      </section>
+
+      <!-- ================= Settings ================= -->
+      <section class="view" id="settingsView" hidden>
+        <div class="view-head">
+          <div>
+            <h2>Settings</h2>
+            <p class="muted">Launcher, runtimes, profiles and storage.</p>
+          </div>
+        </div>
+        <div class="settings-shell">
+          <nav class="settings-nav" aria-label="Settings sections">
+            <button class="settings-nav-item active" data-settings-tab="general">General</button>
+            <button class="settings-nav-item" data-settings-tab="java">Java</button>
+            <button class="settings-nav-item" data-settings-tab="profiles">Profiles</button>
+            <button class="settings-nav-item" data-settings-tab="caching">Storage</button>
+            <button class="settings-nav-item" data-settings-tab="about">About</button>
+          </nav>
+
+          <div class="settings-content">
+            <!-- General -->
+            <div class="settings-tab" id="settingsTab-general">
+              <section class="card">
+                <div class="card-head"><h4>Player</h4></div>
+                <div class="field">
+                  <label for="usernameInput">Offline username</label>
+                  <input id="usernameInput" type="text" value="Player" spellcheck="false" maxlength="32" />
+                  <p class="hint">Used for offline UUIDs. Cuboid has no Microsoft sign-in.</p>
                 </div>
-              </div>
+              </section>
 
-              <div class="settings-group">
-                <h3>Migrate Config to New Directory</h3>
-                <p class="muted">
-                  Copies every version, JDK, cache, and setting into a new empty folder, then switches
-                  the launcher to use it. Restart SquareLauncher after migrating to finish the switch.
+              <section class="card">
+                <div class="card-head"><h4>Launcher directory</h4></div>
+                <p class="muted mono small" id="currentUserDirLabel">Loading…</p>
+                <div class="row-actions">
+                  <button class="btn btn-secondary" id="openUserDirBtn">Open folder</button>
+                </div>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h4>Migrate to a new directory</h4></div>
+                <p class="hint">
+                  Copies every profile, JDK, cache and setting into an empty folder, then switches Cuboid to it.
+                  Restart afterwards to finish the move.
                 </p>
-                <div class="field">
-                  <label>New Directory</label>
-                  <div class="field-row">
-                    <input id="migrateDirInput" type="text" readonly placeholder="Choose an empty folder…" />
-                    <button class="btn btn-icon" id="migrateBrowseBtn" title="Browse">…</button>
-                  </div>
+                <div class="field-row">
+                  <input id="migrateDirInput" type="text" readonly placeholder="Choose an empty folder…" />
+                  <button class="btn btn-secondary" id="migrateBrowseBtn">Browse</button>
                 </div>
-                <div class="field-actions">
-                  <button class="btn btn-accent" id="migrateStartBtn">Migrate</button>
+                <div class="row-actions">
+                  <button class="btn btn-primary" id="migrateStartBtn">Migrate</button>
                 </div>
-                <p class="muted" id="migrateStatus"></p>
-              </div>
+                <p class="hint" id="migrateStatus"></p>
+              </section>
             </div>
-          </div>
 
-          <!-- Runtimes -->
-          <div class="settings-tab" id="settingsTab-runtimes" hidden>
-            <div class="settings-panel">
-              <div class="settings-group">
-                <h3>Java Runtime</h3>
-                <div class="field">
-                  <label for="jvmInput">Java executable path</label>
-                  <div class="field-row">
-                    <input id="jvmInput" type="text" placeholder="/path/to/java" spellcheck="false" />
-                    <button class="btn btn-icon" id="jvmBrowseBtn" title="Browse">…</button>
-                  </div>
+            <!-- Java -->
+            <div class="settings-tab" id="settingsTab-java" hidden>
+              <section class="card">
+                <div class="card-head"><h4>Default Java runtime</h4></div>
+                <div class="field-row">
+                  <input id="jvmInput" type="text" placeholder="/path/to/java/bin/java" spellcheck="false" />
+                  <button class="btn btn-secondary" id="jvmBrowseBtn">Browse</button>
                 </div>
-                <div class="field-actions">
-                  <button class="btn" id="setJvmBtn">Save</button>
-                  <button class="btn" id="testJvmBtn">Test</button>
+                <div class="row-actions">
+                  <button class="btn btn-primary" id="setJvmBtn">Save</button>
+                  <button class="btn btn-secondary" id="testJvmBtn">Test</button>
+                  <button class="btn btn-ghost" id="openJavaFolderBtn">Reveal</button>
                 </div>
-              </div>
+                <p class="hint mono small" id="jvmTestResult"></p>
+              </section>
 
-              <div class="settings-group">
-                <h3>Install a JDK</h3>
-                <div class="field">
-                  <label for="jdkVersionSelect">JDK version</label>
-                  <select id="jdkVersionSelect">
-                    <option value="26" selected>OpenJDK 26</option>
-                    <option value="25">OpenJDK 25</option>
-                    <option value="21">OpenJDK 21</option>
-                    <option value="17">OpenJDK 17</option>
-                    <option value="8">OpenJDK 8</option>
+              <section class="card">
+                <div class="card-head"><h4>Download a JDK</h4><span class="badge">Adoptium Temurin</span></div>
+                <p class="hint">
+                  Downloaded through the Adoptium API, which redirects to a live release asset. The old Oracle
+                  <span class="mono">download.oracle.com/java/…/latest</span> URLs used by 3.0.17 now return 404.
+                </p>
+                <div class="field-row">
+                  <select id="jdkVersionSelect" aria-label="JDK version">
+                    <option value="21" selected>Java 21 (LTS)</option>
+                    <option value="17">Java 17 (LTS)</option>
+                    <option value="25">Java 25 (LTS)</option>
+                    <option value="26">Java 26</option>
+                    <option value="8">Java 8 (legacy)</option>
                   </select>
+                  <button class="btn btn-primary" id="installJdkBtn">Download &amp; install</button>
                 </div>
-                <label class="checkbox-field">
-                  <input type="checkbox" id="jdkForceReinstall" />
-                  Force re-download even if this JDK is already installed
-                </label>
-                <div class="field-actions">
-                  <button class="btn" id="installJdkBtn">Download &amp; Install</button>
+                <label class="check"><input type="checkbox" id="jdkForceReinstall" /> Re-download even if already installed</label>
+                <div class="progress" id="jdkProgress" hidden>
+                  <div class="progress-track"><div class="progress-fill" id="jdkProgressFill"></div></div>
+                  <span class="hint" id="jdkProgressLabel"></span>
                 </div>
-              </div>
-            </div>
-          </div>
+              </section>
 
-          <!-- Caching -->
-          <div class="settings-tab" id="settingsTab-caching" hidden>
-            <div class="settings-panel">
-              <div class="settings-group">
-                <h3>Version Checking</h3>
-                <label class="checkbox-field">
-                  <input type="checkbox" id="cacheCheckVersions" />
-                  Cache the Mojang version manifest &amp; version metadata
-                </label>
+              <section class="card">
+                <div class="card-head"><h4>Installed runtimes</h4></div>
+                <div id="installedJdkList" class="list-stack"></div>
+              </section>
+            </div>
+
+            <!-- Profiles -->
+            <div class="settings-tab" id="settingsTab-profiles" hidden>
+              <section class="card">
+                <div class="card-head">
+                  <h4>Profile inspector</h4>
+                  <select id="settingsProfileSelect" aria-label="Profile"></select>
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn-secondary" id="settingsOpenProfile">Open folder</button>
+                  <button class="btn btn-secondary" id="settingsOpenMods">Open mods</button>
+                  <button class="btn btn-secondary" id="settingsOpenPacks">Open resource packs</button>
+                  <button class="btn btn-ghost" id="settingsProfileSettings">Profile settings…</button>
+                </div>
+                <div class="mods-summary" id="settingsModsSummary"></div>
+                <div class="tree" id="settingsModTree"></div>
+              </section>
+              <section class="card">
+                <div class="card-head"><h4>Resource packs</h4></div>
+                <div class="pack-list" id="settingsPackList"></div>
+              </section>
+            </div>
+
+            <!-- Storage -->
+            <div class="settings-tab" id="settingsTab-caching" hidden>
+              <section class="card">
+                <div class="card-head"><h4>Caching</h4></div>
+                <label class="check"><input type="checkbox" id="cacheCheckVersions" /> Cache Mojang version manifests</label>
                 <div class="field">
-                  <label for="cacheVersionsTTL">Cache duration (hours)</label>
+                  <label for="cacheVersionsTTL">Manifest cache duration (hours)</label>
                   <input id="cacheVersionsTTL" type="number" min="1" />
                 </div>
-              </div>
-
-              <div class="settings-group">
-                <h3>Mod Loader Metadata</h3>
-                <label class="checkbox-field">
-                  <input type="checkbox" id="cacheModloaders" />
-                  Cache Fabric / Quilt / Forge / NeoForge version lists &amp; installers
-                </label>
+                <label class="check"><input type="checkbox" id="cacheModloaders" /> Cache Fabric / Quilt / Forge / NeoForge metadata</label>
                 <div class="field">
-                  <label for="cacheModloaderTTL">Cache duration (hours)</label>
+                  <label for="cacheModloaderTTL">Loader metadata cache duration (hours)</label>
                   <input id="cacheModloaderTTL" type="number" min="1" />
                 </div>
-              </div>
+                <label class="check"><input type="checkbox" id="cacheLibraries" /> Share downloaded libraries between profiles</label>
+                <label class="check"><input type="checkbox" id="cacheAssets" /> Share game assets between profiles</label>
+              </section>
 
-              <div class="settings-group">
-                <h3>Library Caching</h3>
-                <label class="checkbox-field">
-                  <input type="checkbox" id="cacheLibraries" />
-                  Share downloaded libraries across every profile instead of re-downloading them
-                </label>
-                <p class="muted" id="cacheLibrariesStat">—</p>
-                <div class="field-actions">
-                  <button class="btn" id="clearLibrariesCacheBtn">Clear library cache</button>
+              <section class="card">
+                <div class="card-head"><h4>Cache usage</h4></div>
+                <div class="stat-grid compact">
+                  <div class="stat-card"><span class="stat-label">Libraries</span><span class="stat-value small" id="cacheLibrariesStat">—</span></div>
+                  <div class="stat-card"><span class="stat-label">Assets</span><span class="stat-value small" id="cacheAssetsStat">—</span></div>
+                  <div class="stat-card"><span class="stat-label">Total</span><span class="stat-value small" id="cacheTotalStat">—</span></div>
                 </div>
-              </div>
+                <div class="row-actions">
+                  <button class="btn btn-secondary" id="clearLibrariesCacheBtn">Clear libraries</button>
+                  <button class="btn btn-secondary" id="clearAssetsCacheBtn">Clear assets</button>
+                  <button class="btn btn-danger" id="clearAllCacheBtn">Clear everything</button>
+                </div>
+              </section>
+            </div>
 
-              <div class="settings-group">
-                <h3>Asset Caching</h3>
-                <label class="checkbox-field">
-                  <input type="checkbox" id="cacheAssets" />
-                  Cache game assets per Minecraft version instead of re-downloading on every install
-                </label>
-                <p class="muted" id="cacheAssetsStat">—</p>
-                <div class="field-actions">
-                  <button class="btn" id="clearAssetsCacheBtn">Clear asset cache</button>
+            <!-- About -->
+            <div class="settings-tab" id="settingsTab-about" hidden>
+              <section class="card about-card">
+                <img src="../../assets/logo.svg" alt="" width="56" height="56" />
+                <div>
+                  <h3 id="aboutName">Cuboid</h3>
+                  <p class="muted small" id="aboutVersion">4.0.0</p>
+                  <p class="hint" id="aboutSystem"></p>
                 </div>
-              </div>
-
-              <div class="settings-group">
-                <h3>All Caches</h3>
-                <p class="muted" id="cacheTotalStat">—</p>
-                <div class="field-actions">
-                  <button class="btn btn-danger" id="clearAllCacheBtn">Clear all caches</button>
+              </section>
+              <section class="card">
+                <div class="card-head"><h4>Removed in 4.0</h4></div>
+                <ul class="notes">
+                  <li><strong>Microsoft / msAuth sign-in is gone.</strong> The device-code flow, stored session and auth IPC have been removed; Cuboid is offline-mode only.</li>
+                  <li><strong>ZIP package installs are deprecated.</strong> They still work, but only require a <span class="mono">start.py</span> and can't be verified, updated or dependency-checked.</li>
+                </ul>
+                <div class="row-actions">
+                  <button class="btn btn-secondary" id="aboutHomepageBtn">Project homepage</button>
                 </div>
-              </div>
+              </section>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Updates View -->
-    <section class="view" id="updatesView" hidden>
-      <div class="view-header">
-        <h2>Updates</h2>
-      </div>
-      <div class="updates-panel">
-        <div class="update-info" id="updateInfo">
-          <p>Checking for updates...</p>
+      <!-- ================= Updates ================= -->
+      <section class="view" id="updatesView" hidden>
+        <div class="view-head">
+          <div><h2>Updates</h2><p class="muted">Check the release feed for a newer build.</p></div>
         </div>
-        <button class="btn" id="checkUpdateBtn" hidden>Check for updates</button>
-        <button class="btn btn-accent" id="installUpdateBtn" hidden>Install Update</button>
-      </div>
-    </section>
+        <section class="card">
+          <div id="updateInfo" class="list-stack"><p class="muted">Checking for updates…</p></div>
+          <div class="row-actions">
+            <button class="btn btn-secondary" id="checkUpdateBtn">Check again</button>
+            <button class="btn btn-primary" id="installUpdateBtn" hidden>Install update</button>
+          </div>
+          <p class="hint" id="updateProgress"></p>
+        </section>
+      </section>
+    </div>
 
-    <!-- Console Output -->
-    <section class="log-panel">
-      <div class="log-panel-header">
-        <span>Console</span>
-        <button class="btn btn-ghost btn-small" id="clearLogBtn">Clear</button>
-      </div>
-      <pre class="log-output" id="logOutput"></pre>
-    </section>
   </main>
 
-  <!-- Modals -->
+  <!-- ===================== Filters drawer ===================== -->
+  <div class="drawer-scrim" id="drawerScrim" hidden></div>
+  <aside class="drawer" id="filtersDrawer" hidden aria-label="Filters">
+    <header class="drawer-head">
+      <h3>Filters</h3>
+      <button class="icon-btn tiny" data-close-drawer aria-label="Close filters">✕</button>
+    </header>
+    <div class="drawer-body">
+      <p class="hint">Each filter has an override that removes the profile-derived limit for that one dimension.</p>
 
-  <!-- Mod details and installation modal -->
-  <div class="modal-backdrop" id="modModal" hidden>
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="modModalTitle">Mod details</h3>
-        <button class="btn btn-icon" data-close="modModal">✕</button>
+      <div class="filter-block">
+        <div class="filter-head">
+          <span>Game version</span>
+          <label class="switch"><input type="checkbox" id="fVersionOverride" /><span class="switch-track"></span><span class="switch-label">Override</span></label>
+        </div>
+        <p class="filter-value" id="fVersionValue">Profile version</p>
+        <p class="hint">Override searches every Minecraft version instead of the active profile's.</p>
       </div>
-      <div class="modal-body">
-        <div class="mod-detail-header">
-          <img id="modModalIcon" class="mod-detail-icon" alt="" />
-          <div>
-            <p id="modModalDescription" class="mod-detail-description"></p>
-            <p id="modModalStats" class="muted"></p>
-          </div>
+
+      <div class="filter-block">
+        <div class="filter-head">
+          <span>Mod loader</span>
+          <label class="switch"><input type="checkbox" id="fLoaderOverride" /><span class="switch-track"></span><span class="switch-label">Override</span></label>
         </div>
-        <div class="field">
-          <label for="modProfileSelect">Install to profile</label>
-          <select id="modProfileSelect"></select>
-        </div>
-        <div class="field">
-          <label for="modVersionSelect">Mod version</label>
-          <select id="modVersionSelect"><option>Choose a profile first</option></select>
-        </div>
-        <p id="modInstallStatus" class="muted"></p>
+        <p class="filter-value" id="fLoaderValue">Profile loader</p>
+        <div class="chip-row" id="fLoaderChips" hidden></div>
+        <p class="hint">Override lets you mix loaders (or search mods for a loader no profile uses).</p>
       </div>
-      <div class="modal-footer">
-        <button class="btn" data-close="modModal">Cancel</button>
-        <button class="btn btn-accent" id="modInstallBtn" disabled>Install Mod</button>
+
+      <div class="filter-block">
+        <div class="filter-head">
+          <span>Category</span>
+          <label class="switch"><input type="checkbox" id="fCategoryOverride" /><span class="switch-track"></span><span class="switch-label">Override</span></label>
+        </div>
+        <select id="fCategorySelect" aria-label="Category">
+          <option value="">All essential categories</option>
+        </select>
+        <input id="fCategoryCustom" type="text" placeholder="Custom category id (override only)" hidden spellcheck="false" />
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-head">
+          <span>Environment</span>
+          <label class="switch"><input type="checkbox" id="fEnvOverride" /><span class="switch-track"></span><span class="switch-label">Override</span></label>
+        </div>
+        <select id="fEnvSelect" aria-label="Environment">
+          <option value="client" selected>Client</option>
+        </select>
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-head">
+          <span>Sort</span>
+          <label class="switch"><input type="checkbox" id="fSortOverride" /><span class="switch-track"></span><span class="switch-label">Override</span></label>
+        </div>
+        <select id="fSortSelect" aria-label="Sort">
+          <option value="downloads" selected>Downloads</option>
+          <option value="relevance">Relevance</option>
+        </select>
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-head">
+          <span>Licence</span>
+          <label class="switch"><input type="checkbox" id="fLicenseOverride" /><span class="switch-track"></span><span class="switch-label">Override</span></label>
+        </div>
+        <select id="fLicenseSelect" aria-label="Licence" hidden>
+          <option value="">Any licence</option>
+          <option value="mit">MIT</option>
+          <option value="apache-2.0">Apache 2.0</option>
+          <option value="gpl-3.0">GPL 3.0</option>
+          <option value="lgpl-3.0">LGPL 3.0</option>
+          <option value="mpl-2.0">MPL 2.0</option>
+          <option value="isc">ISC</option>
+          <option value="unlicense">Unlicense</option>
+        </select>
+        <label class="check"><input type="checkbox" id="fOpenSource" /> Open source only</label>
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-head"><span>Essential filters</span></div>
+        <label class="check"><input type="checkbox" id="eCompatible" checked /> Compatible with the active profile</label>
+        <label class="check"><input type="checkbox" id="eHideInstalled" checked /> Hide already installed</label>
+        <label class="check"><input type="checkbox" id="eHideLibraries" /> Hide libraries / API mods</label>
+        <label class="check"><input type="checkbox" id="eRecent" /> Updated in the last 30 days</label>
       </div>
     </div>
-  </div>
-  
-  <!-- Add from Mojang modal -->
-  <div class="modal-backdrop" id="mojangModal" hidden>
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Install Minecraft Version</h3>
-        <button class="btn btn-icon" data-close="mojangModal">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="field">
-          <label>Loader Type</label>
-          <div class="loader-toggle" id="loaderToggle">
-            <button type="button" class="loader-option selected" data-loader="vanilla">Vanilla</button>
-            <button type="button" class="loader-option" data-loader="fabric">Fabric</button>
-            <button type="button" class="loader-option" data-loader="quilt">Quilt</button>
-            <button type="button" class="loader-option" data-loader="forge">Forge</button>
-            <button type="button" class="loader-option" data-loader="neoforge">NeoForge</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>Version Type</label>
-          <select id="versionTypeSelect">
-            <option value="release" selected>Releases</option>
-            <option value="snapshot">Snapshots</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Version</label>
-          <select id="versionSelect"><option>Loading…</option></select>
-        </div>
-        <div class="field" id="loaderVersionField" hidden>
-          <label id="loaderVersionLabel">Loader Version</label>
-          <select id="loaderVersionSelect"><option>Loading…</option></select>
-        </div>
-        <div class="field">
-          <label>Display Name</label>
-          <input id="mojangNameInput" type="text" placeholder="e.g. Fabric 1.20.1" />
-        </div>
-        <div class="progress-row" id="mojangProgress" hidden>
-          <div class="progress-track"><div class="progress-fill" id="mojangProgressFill"></div></div>
-          <span class="muted" id="mojangProgressLabel"></span>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" data-close="mojangModal">Cancel</button>
-        <button class="btn btn-accent" id="mojangInstallBtn">Install</button>
-      </div>
-    </div>
-  </div>
+    <footer class="drawer-foot">
+      <button class="btn btn-ghost" id="filtersReset">Reset</button>
+      <button class="btn btn-primary" id="filtersApply">Apply filters</button>
+    </footer>
+  </aside>
 
-  <!-- Add from ZIP modal -->
-  <div class="modal-backdrop" id="zipModal" hidden>
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Add from ZIP package</h3>
-        <button class="btn btn-icon" data-close="zipModal">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="field">
-          <label>ZIP File</label>
-          <div class="field-row">
-            <input id="zipPathInput" type="text" readonly placeholder="Choose a .zip file…" />
-            <button class="btn btn-icon" id="zipBrowseBtn">…</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>Profile Name</label>
-          <input id="zipNameInput" type="text" placeholder="e.g. My Custom Build" />
-        </div>
-        <div class="progress-row" id="zipProgress" hidden>
-          <div class="progress-track"><div class="progress-fill" id="zipProgressFill"></div></div>
-          <span class="muted" id="zipProgressLabel"></span>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" data-close="zipModal">Cancel</button>
-        <button class="btn btn-accent" id="zipInstallBtn">Install</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Profile config modal -->
+  <!-- ===================== Profile settings modal ===================== -->
   <div class="modal-backdrop" id="profileModal" hidden>
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="profileModalTitle">Profile Config</h3>
-        <button class="btn btn-icon" data-close="profileModal">✕</button>
-      </div>
-      <div class="modal-body" id="profileModalBody">
-        <div class="field">
-          <label>Java Override (optional)</label>
-          <input id="profileJvmInput" type="text" placeholder="Leave blank to use default" />
+    <div class="modal modal-lg">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <img id="pmIcon" class="modal-icon" src="../../assets/logo.svg" alt="" />
+          <div>
+            <h3 id="pmTitle">Profile</h3>
+            <p class="muted small" id="pmSubtitle"></p>
+          </div>
         </div>
+        <button class="icon-btn" data-close="profileModal" aria-label="Close">✕</button>
+      </header>
+
+      <div class="modal-body" id="pmBody">
+        <section class="card">
+          <div class="card-head">
+            <h4>Memory allocation</h4>
+            <span class="badge badge-accent" id="pmMemoryPill">—</span>
+          </div>
+          <input id="pmMemory" class="range" type="range" min="2048" max="8192" step="256" value="4096" aria-label="Profile memory" />
+          <div class="range-meta">
+            <span id="pmMemoryMin">2048 MiB</span>
+            <span id="pmMemoryMax">—</span>
+          </div>
+          <p class="hint" id="pmMemoryHint"></p>
+          <button class="btn btn-ghost btn-sm" id="pmMemoryReset">Use suggested (½ of system RAM)</button>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h4>Java for this profile</h4></div>
+          <div class="field">
+            <label for="pmJavaPath">Java override (blank = launcher default)</label>
+            <div class="field-row">
+              <input id="pmJavaPath" type="text" placeholder="Uses the default runtime" spellcheck="false" />
+              <button class="btn btn-secondary" id="pmJavaBrowse">Browse</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="pmJvmArgs">Extra JVM arguments</label>
+            <input id="pmJvmArgs" type="text" placeholder="-XX:+UseG1GC -Dfile.encoding=UTF-8" spellcheck="false" />
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h4>Profile folders</h4></div>
+          <div class="row-actions">
+            <button class="btn btn-secondary" id="pmOpenFolder">Open folder</button>
+            <button class="btn btn-secondary" id="pmOpenMods">Open mods</button>
+            <button class="btn btn-secondary" id="pmOpenPacks">Open resource packs</button>
+          </div>
+          <p class="hint mono small" id="pmPathLabel"></p>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h4>Installed mods &amp; dependency tree</h4>
+            <button class="btn btn-ghost btn-sm" id="pmRefreshMods">Rescan</button>
+          </div>
+          <div class="mods-summary" id="pmModsSummary"></div>
+          <div class="tree" id="pmModTree"></div>
+          <div id="pmMissingDeps" class="warning-box" hidden></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h4>Resource packs</h4>
+            <button class="btn btn-ghost btn-sm" id="pmRefreshPacks">Rescan</button>
+          </div>
+          <div class="dropzone" id="pmDropzone" tabindex="0" role="button" aria-label="Import resource packs">
+            <strong>Drop resource pack .zip files here</strong>
+            <span class="hint">or click to browse — packs are copied into this profile's resourcepacks folder.</span>
+          </div>
+          <div class="pack-list" id="pmPackList"></div>
+        </section>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-danger" id="deleteProfileBtn">Delete</button>
-        <button class="btn" data-close="profileModal">Close</button>
-        <button class="btn btn-accent" id="launchProfileBtn">Launch</button>
-      </div>
+
+      <footer class="modal-footer">
+        <button class="btn btn-danger" id="pmDelete">Delete profile</button>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost" data-close="profileModal">Cancel</button>
+        <button class="btn btn-secondary" id="pmSave">Save</button>
+        <button class="btn btn-primary" id="pmLaunch">Save &amp; launch</button>
+      </footer>
     </div>
   </div>
 
-  <script src="renderer.js"></script>
+  <!-- ===================== Add profile modal ===================== -->
+  <div class="modal-backdrop" id="addProfileModal" hidden>
+    <div class="modal modal-md">
+      <header class="modal-header">
+        <div class="modal-title-wrap"><div><h3>New profile</h3><p class="muted small">Mojang version plus an optional mod loader.</p></div></div>
+        <button class="icon-btn" data-close="addProfileModal" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="field">
+          <label>Loader</label>
+          <div class="segmented wrap" id="addLoaderToggle">
+            <button class="seg-btn active" data-loader="vanilla">Vanilla</button>
+            <button class="seg-btn" data-loader="fabric">Fabric</button>
+            <button class="seg-btn" data-loader="quilt">Quilt</button>
+            <button class="seg-btn" data-loader="forge">Forge</button>
+            <button class="seg-btn" data-loader="neoforge">NeoForge</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field grow">
+            <label for="addVersionType">Version type</label>
+            <select id="addVersionType">
+              <option value="release" selected>Releases</option>
+              <option value="snapshot">Snapshots</option>
+              <option value="old_beta">Old betas</option>
+              <option value="old_alpha">Old alphas</option>
+            </select>
+          </div>
+          <div class="field grow">
+            <label for="addVersionSelect">Minecraft version</label>
+            <select id="addVersionSelect"><option>Loading…</option></select>
+          </div>
+        </div>
+        <div class="field" id="addLoaderVersionField" hidden>
+          <label for="addLoaderVersionSelect">Loader version</label>
+          <select id="addLoaderVersionSelect"><option>Loading…</option></select>
+        </div>
+        <div class="field">
+          <label for="addNameInput">Display name</label>
+          <input id="addNameInput" type="text" placeholder="e.g. Fabric 1.21.1" spellcheck="false" />
+        </div>
+        <div class="progress" id="addProgress" hidden>
+          <div class="progress-track"><div class="progress-fill" id="addProgressFill"></div></div>
+          <span class="hint" id="addProgressLabel"></span>
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" data-close="addProfileModal">Cancel</button>
+        <button class="btn btn-primary" id="addInstallBtn">Install profile</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================== Item modal ===================== -->
+  <div class="modal-backdrop" id="itemModal" hidden>
+    <div class="modal modal-md">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <img id="imIcon" class="modal-icon" alt="" />
+          <div><h3 id="imTitle"></h3><p class="muted small" id="imAuthor"></p></div>
+        </div>
+        <button class="icon-btn" data-close="itemModal" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="item-desc" id="imDescription"></p>
+        <div class="stat-row" id="imStats"></div>
+        <div class="field">
+          <label for="imProfile">Install to profile</label>
+          <select id="imProfile"></select>
+        </div>
+        <div class="field">
+          <label for="imVersion">Version</label>
+          <select id="imVersion"><option>Loading…</option></select>
+        </div>
+        <div class="deps-box" id="imDeps" hidden></div>
+        <label class="check" id="imAutoWrap"><input type="checkbox" id="imAutoDeps" checked /> Also install required dependencies</label>
+        <p class="hint" id="imStatus"></p>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" data-close="itemModal">Close</button>
+        <button class="btn btn-primary" id="imInstall" disabled>Install</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================== ZIP modal (deprecated) ===================== -->
+  <div class="modal-backdrop" id="zipModal" hidden>
+    <div class="modal modal-sm">
+      <header class="modal-header">
+        <div class="modal-title-wrap"><div><h3>Install a ZIP package</h3></div></div>
+        <button class="icon-btn" data-close="zipModal" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="warning-box">
+          <strong>Deprecated:</strong> ZIP package installs are legacy 1.0 packages. They only need a
+          <span class="mono">start.py</span>, aren't verified, can't be dependency-checked, and won't receive
+          per-profile memory or Java updates. Prefer <em>New profile → Mojang + loader</em>.
+        </div>
+        <div class="field">
+          <label>ZIP file</label>
+          <div class="field-row">
+            <input id="zipPathInput" type="text" readonly placeholder="Choose a .zip package…" />
+            <button class="btn btn-secondary" id="zipBrowseBtn">Browse</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="zipNameInput">Profile name</label>
+          <input id="zipNameInput" type="text" placeholder="My legacy build" spellcheck="false" />
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" data-close="zipModal">Cancel</button>
+        <button class="btn btn-danger" id="zipInstallBtn">Install anyway</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================== Error popup ===================== -->
+  <div class="modal-backdrop" id="errorModal" hidden>
+    <div class="modal modal-sm error-modal" role="alertdialog" aria-modal="true" aria-labelledby="errorTitle">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="error-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 8v5"/><circle cx="12" cy="16.4" r=".9"/><path d="M10.3 4.6 2.9 17.4A2 2 0 0 0 4.6 20.4h14.8a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0Z"/></svg>
+          </span>
+          <div>
+            <h3 id="errorTitle">Something went wrong</h3>
+            <p class="muted small" id="errorContext"></p>
+          </div>
+        </div>
+        <button class="icon-btn" data-close="errorModal" aria-label="Dismiss">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="error-detail" id="errorDetail"></p>
+        <p class="hint">Retry the action or check Settings → Java and the launcher folder if this keeps happening.</p>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-primary" data-close="errorModal">Dismiss</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="app.js"></script>
 </body>
 </html>

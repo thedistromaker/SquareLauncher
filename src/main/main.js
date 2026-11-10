@@ -3,50 +3,82 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const Store = require("electron-store");
 
 const { makeRegistry } = require("./registry");
 const { installZip } = require("./zipInstall");
 const { installVersion, listAvailableVersions } = require("./mojangAssets");
 const loaderMeta = require("./loaderMeta");
-const { testJava, launchVersion } = require("./gameLauncher");
-const { installJdkVersion } = require("./jdkInstall");
-const msAuth = require("./msAuth");
+const { testJava, launchVersion, memoryBounds, clampMemory } = require("./gameLauncher");
+const { installJdkVersion, listInstalledJdks } = require("./jdkInstall");
 const cacheManager = require("./cacheManager");
+const modrinth = require("./modrinth");
+const mods = require("./mods");
+const resourcePacks = require("./resourcePacks");
 const pkg = require("../../package.json");
 
-// Directory where fetched/installed versions (zips, downloaded assets,
-// libraries, etc.) are stored.
-//
-// The chosen directory is persisted to a small marker file inside
-// Electron's real, always-available userData folder, so it stays
-// consistent across launches regardless of how the app is started
-// (terminal vs. desktop icon vs. autostart), which don't reliably carry
-// the same environment variables. This avoids a bug where the app would
-// silently use a different (empty) folder on a launch that didn't have
-// SQUARE_LAUNCHER_USER_DIR set, making versions.json/JDK paths appear to
-// "disappear."
-//
-// - First launch: SQUARE_LAUNCHER_USER_DIR (if set) or the default
-//   userData path is used, and recorded in userDirPointer.json.
-// - Every subsequent launch: whatever was recorded is used, ignoring the
-//   env var, so the location never silently changes underneath you.
-// - To intentionally move to a new location, delete userDirPointer.json
-//   (in the default Electron userData folder) or edit it directly.
+// ---------------------------------------------------------------------
+// Launcher directory
+// ---------------------------------------------------------------------
+// The chosen directory is persisted inside Electron's real userData folder so
+// it stays consistent across launches (terminal, desktop icon, autostart).
 const defaultUserDataDir = app.getPath("userData");
 const userDirPointerFile = path.join(defaultUserDataDir, "userDirPointer.json");
+
+function directoryHasProfiles(dir) {
+  try {
+    const versionsDir = path.join(dir, "versions");
+    if (!fs.existsSync(versionsDir)) return false;
+    return fs.readdirSync(versionsDir, { withFileTypes: true }).some(
+      (entry) => entry.isDirectory() && !entry.name.startsWith(".")
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Cuboid renamed the app, which changes Electron's userData folder. On first
+// run with an empty Cuboid folder, reuse a SquareLauncher folder that already
+// contains profiles instead of showing an empty library.
+function findLegacyUserDir() {
+  try {
+    const appData = app.getPath("appData");
+    return (
+      fs
+        .readdirSync(appData, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && /^squarelauncher/i.test(entry.name))
+        .map((entry) => path.join(appData, entry.name))
+        .filter((dir) => dir !== defaultUserDataDir && directoryHasProfiles(dir))[0] || null
+    );
+  } catch {
+    return null;
+  }
+}
 
 function resolveUserDir() {
   if (fs.existsSync(userDirPointerFile)) {
     try {
       const pointer = JSON.parse(fs.readFileSync(userDirPointerFile, "utf-8"));
-      if (pointer && pointer.userDir) return pointer.userDir;
+      if (pointer && pointer.userDir) {
+        if (!directoryHasProfiles(pointer.userDir)) {
+          const legacy = findLegacyUserDir();
+          if (legacy) {
+            fs.writeFileSync(userDirPointerFile, JSON.stringify({ userDir: legacy }, null, 2));
+            return legacy;
+          }
+        }
+        return pointer.userDir;
+      }
     } catch {
-      // fall through to re-derive below
+      /* re-derive below */
     }
   }
-
-  const resolved = process.env.SQUARE_LAUNCHER_USER_DIR || defaultUserDataDir;
+  let resolved = process.env.SQUARE_LAUNCHER_USER_DIR || defaultUserDataDir;
+  if (!process.env.SQUARE_LAUNCHER_USER_DIR && !directoryHasProfiles(resolved)) {
+    const legacy = findLegacyUserDir();
+    if (legacy) resolved = legacy;
+  }
   fs.mkdirSync(defaultUserDataDir, { recursive: true });
   fs.writeFileSync(userDirPointerFile, JSON.stringify({ userDir: resolved }, null, 2));
   return resolved;
@@ -57,13 +89,8 @@ if (!fs.existsSync(USER_DIR)) fs.mkdirSync(USER_DIR, { recursive: true });
 
 const BASE_DIR = USER_DIR;
 const registry = makeRegistry(BASE_DIR);
-const store = new Store({ name: "square-launcher-settings" });
+const store = new Store({ name: "cuboid-settings" });
 
-// The cache manager is a singleton used by every installer module
-// (mojangAssets, loaderMeta, forgeInstall). It reads its on/off switches
-// and TTLs live from the settings store, so toggling a checkbox in
-// Settings > Caching takes effect on the very next install with no
-// restart required.
 cacheManager.init(BASE_DIR, () => {
   const settings = store.get("settings") || {};
   return { ...cacheManager.DEFAULT_CACHE_SETTINGS, ...(settings.caching || {}) };
@@ -74,13 +101,14 @@ let activeChild = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1360,
-    height: 800,
-    minWidth: 1040,
-    minHeight: 640,
-    backgroundColor: "#12141a",
-    title: "Square Launcher",
+    width: 1380,
+    height: 860,
+    minWidth: 1080,
+    minHeight: 660,
+    backgroundColor: "#0b0c18",
+    title: "Cuboid",
     icon: path.join(__dirname, "..", "..", "assets", "icons", "icon.png"),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "..", "preload", "preload.js"),
       contextIsolation: true,
@@ -105,9 +133,28 @@ app.on("window-all-closed", () => {
 });
 
 function send(channel, payload) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, payload);
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+}
+
+function profileEntry(name) {
+  const current = registry.scan();
+  const entry = current[name];
+  if (!entry || !entry.path) throw new Error(`Unknown profile "${name}".`);
+  return entry;
+}
+
+function profilePathFor(name) {
+  return profileEntry(name).path;
+}
+
+async function openDirectory(dir, label) {
+  fs.mkdirSync(dir, { recursive: true });
+  const err = await shell.openPath(dir);
+  if (err) {
+    shell.showItemInFolder(dir);
+    throw new Error(`Could not open the ${label} folder: ${err}`);
   }
+  return true;
 }
 
 // ---------------------------------------------------------------------
@@ -115,9 +162,11 @@ function send(channel, payload) {
 // ---------------------------------------------------------------------
 ipcMain.handle("registry:scan", () => registry.scan());
 
-ipcMain.handle("registry:info", () => {
-  return { versionsDir: registry.versionsDir, registryFile: registry.registryFile, userDir: USER_DIR };
-});
+ipcMain.handle("registry:info", () => ({
+  versionsDir: registry.versionsDir,
+  registryFile: registry.registryFile,
+  userDir: USER_DIR,
+}));
 
 ipcMain.handle("registry:setDefaultJvm", (_e, jvmPath) => {
   registry.setDefaultJvm(jvmPath);
@@ -128,19 +177,92 @@ ipcMain.handle("registry:rename", (_e, { oldName, newName }) => {
   const versionsDir = registry.versionsDir;
   const oldDir = path.join(versionsDir, oldName);
   const newDir = path.join(versionsDir, newName);
-  if (fs.existsSync(newDir)) throw new Error("A version with that name already exists.");
+  if (fs.existsSync(newDir)) throw new Error("A profile with that name already exists.");
   if (fs.existsSync(oldDir)) fs.renameSync(oldDir, newDir);
   registry.rename(oldName, newName);
   return registry.scan();
 });
 
 ipcMain.handle("registry:delete", (_e, name) => {
-  if (!name) throw new Error("No version selected to delete.");
+  if (!name) throw new Error("No profile selected to delete.");
   const target = path.join(registry.versionsDir, name);
   if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
   registry.remove(name);
   return registry.scan();
 });
+
+/**
+ * Per-profile settings written from the three-dot profile menu:
+ * heap size, extra JVM args and a Java override for just this profile.
+ */
+ipcMain.handle("registry:updateProfile", (_e, { name, patch }) => {
+  if (!name || !patch || typeof patch !== "object") throw new Error("Invalid profile update.");
+  const allowed = {};
+  if (Object.prototype.hasOwnProperty.call(patch, "memoryMb")) {
+    allowed.memoryMb = patch.memoryMb === null ? null : clampMemory(patch.memoryMb);
+  }
+  if (typeof patch.jvmArgs === "string") allowed.jvmArgs = patch.jvmArgs.trim();
+  if (typeof patch.javaPath === "string") allowed.javaPath = patch.javaPath;
+  const entry = registry.updateProfile(name, allowed);
+  return { entry, registry: registry.scan(), bounds: memoryBounds() };
+});
+
+// ---------------------------------------------------------------------
+// System / environment
+// ---------------------------------------------------------------------
+ipcMain.handle("system:info", () => ({
+  app: {
+    name: pkg.build && pkg.build.productName ? pkg.build.productName : "Cuboid",
+    version: pkg.version,
+    launcherVersion: pkg.launcherVersion,
+    homepage: pkg.homepage,
+  },
+  platform: process.platform,
+  arch: process.arch,
+  cpus: os.cpus().length,
+  totalMemoryMb: Math.floor(os.totalmem() / 1024 / 1024),
+  freeMemoryMb: Math.floor(os.freemem() / 1024 / 1024),
+  memoryBounds: memoryBounds(),
+  userDir: USER_DIR,
+  versionsDir: registry.versionsDir,
+}));
+
+ipcMain.handle("system:openPath", async (_e, target) => {
+  if (!target || typeof target !== "string") throw new Error("No folder to open.");
+  const resolved = path.resolve(target);
+  if (!resolved.startsWith(path.resolve(USER_DIR)) && !resolved.startsWith(path.resolve(registry.versionsDir))) {
+    throw new Error("Refusing to open a folder outside the launcher directory.");
+  }
+  return openDirectory(resolved, "requested");
+});
+
+ipcMain.handle("system:openHomepage", async () => {
+  if (pkg.homepage) await shell.openExternal(pkg.homepage);
+  return true;
+});
+
+ipcMain.handle("system:chooseDirectory", async () => {
+  const res = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle("file:select", async (_e, options) => {
+  const res = await dialog.showOpenDialog(mainWindow, options || { properties: ["openFile"] });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle("files:selectMany", async (_e, filters) => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile", "multiSelections"],
+    filters: filters || [{ name: "Archives", extensions: ["zip"] }],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths;
+});
+
+ipcMain.handle("system:openUserDir", async () => openDirectory(USER_DIR, "launcher"));
 
 // ---------------------------------------------------------------------
 // Java runtime
@@ -148,7 +270,7 @@ ipcMain.handle("registry:delete", (_e, name) => {
 ipcMain.handle("java:test", async (_e, jvmPath) => testJava(jvmPath));
 
 ipcMain.handle("java:openFolder", (_e, jvmPath) => {
-  shell.showItemInFolder(jvmPath);
+  if (jvmPath) shell.showItemInFolder(jvmPath);
 });
 
 ipcMain.handle("java:chooseFile", async () => {
@@ -157,49 +279,18 @@ ipcMain.handle("java:chooseFile", async () => {
   return res.filePaths[0];
 });
 
-ipcMain.handle("java:installJdk26", async () => {
-  // legacy entrypoint kept for compatibility; forwards to the parameterized installer
-  return installJdkVersion(
-    BASE_DIR,
-    "26",
-    (line) => send("log:line", line),
-    (info) => send("jdk:progress", info)
-  );
-});
+ipcMain.handle("java:installed", () => listInstalledJdks(BASE_DIR));
 
 ipcMain.handle("java:installJdk", async (_e, version, forceReinstall) => {
-  const v = version || "26";
-  return installJdkVersion(
+  const result = await installJdkVersion(
     BASE_DIR,
-    v,
-    (line) => send("log:line", line),
+    version || "21",
+    () => {},
     (info) => send("jdk:progress", info),
     !!forceReinstall
   );
-});
-
-// ---------------------------------------------------------------------
-// Files directory
-// ---------------------------------------------------------------------
-ipcMain.handle("system:openUserDir", async () => {
-  try {
-    if (!fs.existsSync(USER_DIR)) fs.mkdirSync(USER_DIR, { recursive: true });
-    // Try openPath first; if it returns a non-empty string it's an error message.
-    const err = await shell.openPath(USER_DIR);
-    if (err) {
-      // fallback to showItemInFolder (best-effort)
-      try {
-        shell.showItemInFolder(USER_DIR);
-      } catch (e) {
-        // ignore
-      }
-      throw new Error(`Could not open files directory: ${err}`);
-    }
-    return true;
-  } catch (err) {
-    console.error("system:openUserDir failed:", err && err.message ? err.message : err);
-    throw err;
-  }
+  if (result && result.binaryPath) registry.setDefaultJvm(result.binaryPath);
+  return result;
 });
 
 // ---------------------------------------------------------------------
@@ -209,7 +300,7 @@ ipcMain.handle("settings:get", () => {
   const saved = store.get("settings") || {};
   return {
     theme: "dark",
-    jdkVersion: "26",
+    jdkVersion: "21",
     userDir: USER_DIR,
     username: "Player",
     ...saved,
@@ -228,7 +319,7 @@ ipcMain.handle("settings:set", (_e, patch) => {
 });
 
 ipcMain.handle("settings:setUserDir", (_e, newDir) => {
-  if (!newDir || typeof newDir !== "string") throw new Error("Invalid user directory");
+  if (!newDir || typeof newDir !== "string") throw new Error("Invalid user directory.");
   try {
     fs.mkdirSync(newDir, { recursive: true });
     fs.mkdirSync(defaultUserDataDir, { recursive: true });
@@ -239,28 +330,17 @@ ipcMain.handle("settings:setUserDir", (_e, newDir) => {
   }
 });
 
-// ---------------------------------------------------------------------
-// Migrate config to a new directory
-// ---------------------------------------------------------------------
-// Copies the entire launcher directory (versions, JDKs, caches, and the
-// versions.json registry) into a new, empty folder, then repoints
-// userDirPointer.json at it. The current process keeps using the old
-// directory until restart - callers should prompt the user to restart.
 ipcMain.handle("settings:migrateUserDir", async (_e, newDir) => {
   if (!newDir || typeof newDir !== "string") throw new Error("Invalid directory.");
   const resolvedNew = path.resolve(newDir);
   const resolvedCurrent = path.resolve(USER_DIR);
-  if (resolvedNew === resolvedCurrent) {
-    throw new Error("That is already the current launcher directory.");
-  }
+  if (resolvedNew === resolvedCurrent) throw new Error("That is already the current launcher directory.");
 
   fs.mkdirSync(resolvedNew, { recursive: true });
-  const existingEntries = fs.readdirSync(resolvedNew);
-  if (existingEntries.length > 0) {
+  if (fs.readdirSync(resolvedNew).length > 0) {
     throw new Error("The chosen directory isn't empty. Pick an empty folder for the migration.");
   }
 
-  send("log:line", `\nMigrating launcher files to: ${resolvedNew}\n`);
   try {
     fs.cpSync(resolvedCurrent, resolvedNew, { recursive: true });
   } catch (err) {
@@ -269,8 +349,6 @@ ipcMain.handle("settings:migrateUserDir", async (_e, newDir) => {
 
   fs.mkdirSync(defaultUserDataDir, { recursive: true });
   fs.writeFileSync(userDirPointerFile, JSON.stringify({ userDir: resolvedNew }, null, 2));
-
-  send("log:line", `Migration complete. Restart SquareLauncher to finish switching to the new directory.\n`);
   return { newDir: resolvedNew, needsRestart: true };
 });
 
@@ -278,19 +356,10 @@ ipcMain.handle("settings:migrateUserDir", async (_e, newDir) => {
 // Caching
 // ---------------------------------------------------------------------
 ipcMain.handle("cache:getStats", () => cacheManager.getCacheStats());
-
 ipcMain.handle("cache:clear", (_e, category) => cacheManager.clearCache(category || "all"));
 
 // ---------------------------------------------------------------------
-// Homepage
-// ---------------------------------------------------------------------
-ipcMain.handle("system:openHomepage", async () => {
-  if (pkg.homepage) await shell.openExternal(pkg.homepage);
-  return true;
-});
-
-// ---------------------------------------------------------------------
-// Zip installs (legacy path, still supported)
+// Legacy ZIP installs (deprecated)
 // ---------------------------------------------------------------------
 ipcMain.handle("install:chooseZip", async () => {
   const res = await dialog.showOpenDialog(mainWindow, {
@@ -304,33 +373,37 @@ ipcMain.handle("install:chooseZip", async () => {
 ipcMain.handle("install:zip", async (_e, { zipPath, name }) => {
   const entry = await installZip(zipPath, name, registry.versionsDir);
   registry.upsert(name, entry);
-  return registry.scan();
+  return { registry: registry.scan(), deprecated: true };
 });
 
 // ---------------------------------------------------------------------
-// Microsoft asset fetching (replaces "zip only")
+// Mojang / loaders
 // ---------------------------------------------------------------------
 ipcMain.handle("mojang:listVersions", async (_e, typeFilter) => listAvailableVersions(typeFilter));
 
 ipcMain.handle("mojang:install", async (_e, { versionId, displayName, loader, loaderVersion, javaPath }) => {
   const loaderKind = loader || "vanilla";
-  const suffix = loaderKind === "vanilla" ? "" : ` (${loaderKind[0].toUpperCase()}${loaderKind.slice(1)})`;
+  const suffix =
+    loaderKind === "vanilla" ? "" : ` (${loaderKind[0].toUpperCase()}${loaderKind.slice(1)})`;
   const name = displayName && displayName.trim() ? displayName.trim() : `${versionId}${suffix}`;
 
-  const session = store.get("session") || null;
   const destDir = path.join(registry.versionsDir, name);
+  if (fs.existsSync(destDir)) {
+    throw new Error(`A profile named "${name}" already exists. Pick a different display name.`);
+  }
 
   const result = await installVersion(
     versionId,
     destDir,
     loaderKind,
     loaderVersion || null,
-    session,
+    null,
     (info) => send("install:progress", info),
     javaPath || registry.scan().default_jvm
   );
 
   registry.upsert(name, {
+    ...result,
     path: result.path,
     icon: null,
     jvm: null,
@@ -338,9 +411,8 @@ ipcMain.handle("mojang:install", async (_e, { versionId, displayName, loader, lo
     versionId,
     loader: loaderKind,
     loaderVersion: result.loaderVersion,
-    credentialMode: result.credentialMode,
   });
-  return registry.scan();
+  return { registry: registry.scan(), installed: name };
 });
 
 ipcMain.handle("loader:listVersions", async (_e, { loader, gameVersion }) => {
@@ -354,141 +426,175 @@ ipcMain.handle("loader:listVersions", async (_e, { loader, gameVersion }) => {
   const list = loaders[loader];
   if (!list) throw new Error(`Unsupported loader "${loader}".`);
   const versions = await list(gameVersion);
-  return versions.map((item) => typeof item === "string" ? { version: item } : item);
+  return versions.map((item) => (typeof item === "string" ? { version: item } : item));
 });
 
 // ---------------------------------------------------------------------
-// Microsoft login (rudimentary device-code sign in)
+// Mods (Modrinth) — with duplicate + dependency handling
 // ---------------------------------------------------------------------
-ipcMain.handle("auth:signIn", async () => {
+ipcMain.handle("mods:search", async (_e, params = {}) => {
   try {
-    const session = await msAuth.signIn((stage, extra) => send("auth:progress", { stage, ...extra }));
-    store.set("session", {
-      minecraftAccessToken: session.minecraftAccessToken,
-      msRefreshToken: session.msRefreshToken,
-      profile: session.profile,
-      ownsGame: session.ownsGame,
-      signedInAt: Date.now(),
-    });
-    return session;
-  } catch (err) {
-    send("auth:progress", { stage: "error", message: err.message });
-    throw err;
-  }
-});
-
-ipcMain.handle("auth:signOut", () => {
-  store.delete("session");
-  return true;
-});
-
-ipcMain.handle("auth:getSession", () => store.get("session") || null);
-
-// ---------------------------------------------------------------------
-// Launching
-// ---------------------------------------------------------------------
-ipcMain.handle("launch:start", async (_e, params) => {
-  const { name, username, jvmPath } = params;
-  if (!name) throw new Error("No version selected to launch.");
-  const currentRegistry = registry.scan();
-  const entry = currentRegistry[name];
-  if (!entry) throw new Error(`Unknown version "${name}".`);
-
-  const onLog = (text) => send("log:line", text);
-  const session = store.get("session") || null;
-
-  send("log:line", `\nLaunching ${name}\n`);
-  const jvmGlobal = jvmPath || registry.scan().default_jvm;
-  activeChild = launchVersion({ entry, username: username || "Player", jvmGlobal, session, onLog });
-  return true;
-});
-
-// =====================================================================
-// File Selection
-// =====================================================================
-ipcMain.handle("file:select", async (_e, options) => {
-  const res = await dialog.showOpenDialog(mainWindow, options || { properties: ["openFile"] });
-  if (res.canceled || !res.filePaths.length) return null;
-  return res.filePaths[0];
-});
-
-// =====================================================================
-// Mods / Modrinth API
-// =====================================================================
-const { trendingMods, searchMods, projectVersions, downloadModFile, familyLoaders } = require("./modrinth");
-
-ipcMain.handle("mods:trending", async (_e, family = "fabric") => {
-  try {
-    return await trendingMods(family);
-  } catch (err) {
-    console.error("mods:trending error:", err);
-    throw err;
-  }
-});
-
-ipcMain.handle("mods:search", async (_e, { query, family }) => {
-  try {
-    return await searchMods({ query, family });
+    return await modrinth.searchProjects(params);
   } catch (err) {
     console.error("mods:search error:", err);
     throw err;
   }
 });
 
-ipcMain.handle("mods:versions", async (_e, { projectId, gameVersion, family }) => {
-  if (!projectId) throw new Error("No mod project selected.");
-  const loaders = familyLoaders(family);
-  return projectVersions(projectId, { gameVersion, loaders });
-});
-
-ipcMain.handle("mods:install", async (_e, { profileName, projectId, versionId }) => {
-  if (!profileName || !projectId || !versionId) throw new Error("Profile, mod, and version are required.");
-  const currentRegistry = registry.scan();
-  const profile = currentRegistry[profileName];
-  if (!profile || !profile.path) throw new Error(`Unknown profile "${profileName}".`);
-
-  const versions = await projectVersions(projectId);
-  const version = versions.find((item) => item.id === versionId);
-  if (!version) throw new Error("That mod version is no longer available.");
-  const file = (version.files || []).find((item) => item.primary) || (version.files || [])[0];
-  if (!file || !file.url || !file.filename.toLowerCase().endsWith(".jar")) {
-    throw new Error("The selected mod version has no downloadable JAR file.");
+ipcMain.handle("mods:trending", async (_e, { family = "fabric", projectType = "mod", limit = 40 } = {}) => {
+  try {
+    return await modrinth.trending({ family, projectType, limit });
+  } catch (err) {
+    console.error("mods:trending error:", err);
+    throw err;
   }
-
-  const modsDir = path.join(profile.path, "mods");
-  const destination = path.join(modsDir, path.basename(file.filename));
-  await downloadModFile(file.url, destination);
-  send("log:line", `Installed ${file.filename} to ${profileName}/mods\n`);
-  return { profileName, filename: file.filename, path: destination };
 });
 
-// =====================================================================
+ipcMain.handle("mods:project", async (_e, projectId) => {
+  if (!projectId) throw new Error("No project selected.");
+  return modrinth.getProject(projectId);
+});
+
+ipcMain.handle("mods:versions", async (_e, { projectId, gameVersion, loader, family, allVersions }) => {
+  if (!projectId) throw new Error("No mod project selected.");
+  const loaders = family ? modrinth.familyLoaders(family) : loader ? modrinth.familyLoaders(loader) : [];
+  return modrinth.getVersions(projectId, {
+    gameVersion: allVersions ? undefined : gameVersion,
+    loaders: loaders.length ? loaders : undefined,
+  });
+});
+
+ipcMain.handle("mods:installed", (_e, { profileName }) => {
+  const entry = profileEntry(profileName);
+  return {
+    mods: mods.listInstalledMods(entry.path),
+    modsDir: mods.modsDir(entry.path),
+  };
+});
+
+ipcMain.handle("mods:tree", (_e, { profileName }) => {
+  const entry = profileEntry(profileName);
+  return mods.buildDependencyTree(entry.path);
+});
+
+ipcMain.handle("mods:dependencies", async (_e, { profileName, projectId, versionId }) => {
+  const entry = profileEntry(profileName);
+  const loaders = entry.loader && entry.loader !== "vanilla" ? modrinth.familyLoaders(entry.loader) : [];
+  return mods.previewDependencies(entry.path, projectId, versionId, {
+    gameVersion: entry.versionId,
+    loaders,
+  });
+});
+
+ipcMain.handle("mods:install", async (_e, { profileName, projectId, versionId, autoDependencies = true }) => {
+  if (!profileName || !projectId || !versionId) throw new Error("Profile, mod and version are required.");
+  const entry = profileEntry(profileName);
+  const loaders = entry.loader && entry.loader !== "vanilla" ? modrinth.familyLoaders(entry.loader) : [];
+  const summary = await mods.installProject(entry.path, projectId, versionId, {
+    gameVersion: entry.versionId,
+    loaders,
+    autoDependencies,
+    onLog: () => {},
+  });
+  return { ...summary, profileName, tree: mods.buildDependencyTree(entry.path) };
+});
+
+ipcMain.handle("mods:uninstall", (_e, { profileName, filename }) => {
+  const entry = profileEntry(profileName);
+  const result = mods.uninstallMod(entry.path, filename);
+  return { ...result, tree: mods.buildDependencyTree(entry.path) };
+});
+
+ipcMain.handle("mods:openFolder", async (_e, { profileName }) => {
+  const entry = profileEntry(profileName);
+  return openDirectory(mods.modsDir(entry.path), "mods");
+});
+
+// ---------------------------------------------------------------------
+// Resource packs
+// ---------------------------------------------------------------------
+ipcMain.handle("packs:search", async (_e, { query = "", gameVersion, limit = 40 } = {}) => {
+  return modrinth.searchProjects({
+    query,
+    projectType: "resourcepack",
+    gameVersions: gameVersion && gameVersion !== "all" ? [gameVersion] : [],
+    limit,
+    index: query ? "relevance" : "downloads",
+  });
+});
+
+ipcMain.handle("packs:list", (_e, { profileName }) => {
+  const entry = profileEntry(profileName);
+  return { packs: resourcePacks.listResourcePacks(entry.path), dir: resourcePacks.resourcePacksDir(entry.path) };
+});
+
+ipcMain.handle("packs:import", (_e, { profileName, paths }) => {
+  const entry = profileEntry(profileName);
+  return resourcePacks.importResourcePacks(entry.path, paths);
+});
+
+ipcMain.handle("packs:install", async (_e, { profileName, projectId, versionId }) => {
+  const entry = profileEntry(profileName);
+  return resourcePacks.installFromModrinth(entry.path, projectId, versionId);
+});
+
+ipcMain.handle("packs:delete", (_e, { profileName, name }) => {
+  const entry = profileEntry(profileName);
+  return resourcePacks.deleteResourcePack(entry.path, name);
+});
+
+ipcMain.handle("packs:openFolder", async (_e, { profileName }) => {
+  const entry = profileEntry(profileName);
+  return openDirectory(resourcePacks.resourcePacksDir(entry.path), "resourcepacks");
+});
+
+// ---------------------------------------------------------------------
+// Profile folders
+// ---------------------------------------------------------------------
+ipcMain.handle("profile:openFolder", async (_e, { profileName }) => {
+  const entry = profileEntry(profileName);
+  return openDirectory(entry.path, "profile");
+});
+
+// ---------------------------------------------------------------------
+// Launching
+// ---------------------------------------------------------------------
+ipcMain.handle("launch:start", async (_e, params = {}) => {
+  const { name, username, jvmPath, memoryMb, extraJvmArgs } = params;
+  if (!name) throw new Error("No profile selected to launch.");
+  const entry = profileEntry(name);
+  const settings = store.get("settings") || {};
+  const bounds = memoryBounds();
+  const requested = memoryMb == null ? entry.memoryMb ?? bounds.suggested : memoryMb;
+  const clamped = clampMemory(requested);
+  const jvmGlobal = jvmPath || registry.scan().default_jvm;
+
+  activeChild = launchVersion({
+    entry,
+    profileName: name,
+    username: username || settings.username || "Player",
+    jvmGlobal,
+    memoryMb: clamped,
+    extraJvmArgs: extraJvmArgs != null ? extraJvmArgs : entry.jvmArgs || "",
+    onLog: () => {},
+  });
+  return { memoryMb: clamped, bounds };
+});
+
+// ---------------------------------------------------------------------
 // Updates
-// =====================================================================
+// ---------------------------------------------------------------------
 const { checkForUpdate, performUpdate, readLocalVersion } = require("./updater");
 
 ipcMain.handle("updates:check", async () => {
   try {
     return await checkForUpdate();
   } catch (err) {
-    console.error("updates:check error:", err);
-    return {
-      local: readLocalVersion(),
-      remote: null,
-      updateAvailable: false,
-      error: err.message,
-    };
+    return { local: readLocalVersion(), remote: null, updateAvailable: false, error: err.message };
   }
 });
 
-ipcMain.handle("updates:perform", async () => {
-  try {
-    return await performUpdate((info) => send("update:progress", info));
-  } catch (err) {
-    console.error("updates:perform error:", err);
-    throw err;
-  }
-});
+ipcMain.handle("updates:perform", async () => performUpdate((info) => send("update:progress", info)));
 
 app.on("before-quit", () => {
   if (activeChild && !activeChild.killed) {

@@ -1,26 +1,41 @@
 "use strict";
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { spawn, spawnSync, execFile } = require("child_process");
-const { patchCredentials } = require("./startPyTemplate");
 const { loadProfile, buildLaunchPlan } = require("./launchProfile");
 const { buildStartPyFromPlan } = require("./startPyTemplate");
 
+const MIN_MEMORY_MB = 2048;
+const RESERVED_MEMORY_MB = 1024;
+const MEMORY_STEP_MB = 256;
+
+/** Heap slider bounds: 2048 MiB up to (system RAM - 1024 MiB). */
+function memoryBounds() {
+  const totalMb = Math.floor(os.totalmem() / 1024 / 1024);
+  // Hard cap is exactly system RAM - 1024 MiB, per the profile settings spec.
+  const max = Math.max(MIN_MEMORY_MB, totalMb - RESERVED_MEMORY_MB);
+  const suggested = Math.min(max, Math.max(MIN_MEMORY_MB, Math.floor((totalMb * 0.5) / MEMORY_STEP_MB) * MEMORY_STEP_MB));
+  return { min: MIN_MEMORY_MB, max, step: MEMORY_STEP_MB, totalMb, suggested };
+}
+
+function clampMemory(value) {
+  const bounds = memoryBounds();
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return bounds.suggested;
+  return Math.min(bounds.max, Math.max(bounds.min, Math.round(n / bounds.step) * bounds.step));
+}
+
 /**
- * start.py is a Python script, not a Node/Electron script, so it must be
- * run through an actual Python interpreter rather than process.execPath
- * (which points at Node/Electron and can't load .py files at all).
- * Tries a few common interpreter names/paths and caches whichever works.
+ * start.py is a Python script, not a Node/Electron script, so it must be run
+ * through an actual Python interpreter rather than process.execPath.
  */
 let cachedPythonCmd = null;
 
 function resolvePythonCommand() {
   if (cachedPythonCmd) return cachedPythonCmd;
-
-  const candidates =
-    process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
-
+  const candidates = process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
   for (const candidate of candidates) {
     const result = spawnSync(candidate, ["--version"], { windowsHide: true });
     if (!result.error && result.status === 0) {
@@ -28,7 +43,6 @@ function resolvePythonCommand() {
       return candidate;
     }
   }
-
   throw new Error(
     "Could not find a Python interpreter (tried: " +
       candidates.join(", ") +
@@ -46,9 +60,8 @@ function testJava(javaPath) {
 
 function resolveJvmPath(jvmSetting, versionDir) {
   let jvmPath = path.isAbsolute(jvmSetting) ? jvmSetting : path.resolve(versionDir, jvmSetting);
-
   if (process.platform === "win32" && !path.extname(jvmPath)) {
-    if (fs.existsSync(jvmPath + ".exe")) jvmPath = jvmPath + ".exe";
+    if (fs.existsSync(`${jvmPath}.exe`)) jvmPath += ".exe";
     else {
       const javaw = path.join(path.dirname(jvmPath), "javaw.exe");
       if (fs.existsSync(javaw)) jvmPath = javaw;
@@ -58,32 +71,18 @@ function resolveJvmPath(jvmSetting, versionDir) {
 }
 
 /**
- * If this version was generated with an embedded Microsoft session and a
- * session is currently active, refresh the --uuid/--accessToken values in
- * start.py right before launch (Minecraft access tokens are short-lived).
- * No-op for zip installs or offline-mode versions.
+ * Regenerates start.py from profile.json so per-profile memory/JVM args take
+ * effect. Zip-packaged profiles ship their own start.py and are left alone.
  */
-function refreshCredentialsIfNeeded(versionDir, session) {
-  const startPath = path.join(versionDir, "start.py");
-  if (!fs.existsSync(startPath) || !session || !session.ownsGame || !session.profile) return;
-
-  const contents = fs.readFileSync(startPath, "utf-8");
-  const patched = patchCredentials(contents, {
-    uuid: session.profile.id,
-    accessToken: session.minecraftAccessToken,
-  });
-  if (patched !== contents) fs.writeFileSync(startPath, patched, "utf-8");
+function regenerateStartPy(versionDir, { username, versionId, memoryMb, extraJvmArgs }) {
+  const profile = loadProfile(versionDir);
+  if (!profile || !profile.mainClass) return false;
+  const plan = buildLaunchPlan(profile, { versionDir, versionId, username });
+  const script = buildStartPyFromPlan(plan, { versionId, memoryMb, extraJvmArgs });
+  fs.writeFileSync(path.join(versionDir, "start.py"), script, "utf-8");
+  return true;
 }
 
-/**
- * Log patterns that mean "wrong-architecture native library" - the classic
- * symptom on arm64 machines that got x86_64 LWJGL/GLFW binaries. Depending
- * on the JDK/platform this can throw a clean exception, or it can wedge
- * native init so the process just sits there forever with no window and
- * no further output, which is what shows up to a user as "it hangs". Either
- * way we want to catch it and tell the user what's wrong instead of
- * leaving them staring at a launcher that looks frozen.
- */
 const ARCH_MISMATCH_PATTERNS = [
   /UnsatisfiedLinkError/i,
   /Platform\/architecture mismatch/i,
@@ -93,34 +92,38 @@ const ARCH_MISMATCH_PATTERNS = [
   /Failed to locate library/i,
 ];
 
-// If nothing at all is printed this long after spawning, treat it as
-// hung rather than leaving the user waiting indefinitely. Generous on
-// purpose - slow ARM SBCs can legitimately take a while to get going -
-// this is a last-resort safety net, not the primary fix.
 const SILENT_HANG_TIMEOUT_MS = 120_000;
 
-/**
- * Launches any profile - zip-installed, vanilla, Fabric, or Quilt - by
- * running its start.py, passing the resolved JVM path the same way the
- * original launcher did.
- */
-function launchVersion({ entry, username, jvmGlobal, session, onLog }) {
+function launchVersion({ entry, profileName, username, jvmGlobal, memoryMb, extraJvmArgs, onLog }) {
   const versionDir = entry.path;
+  const start = path.join(versionDir, "start.py");
+  const isZipProfile = entry.source === "zip";
 
-  if (entry.source === "microsoft") {
-    refreshCredentialsIfNeeded(versionDir, session);
+  if (!isZipProfile) {
+    try {
+      regenerateStartPy(versionDir, {
+        username: username || "Player",
+        versionId: entry.versionId || profileName || path.basename(versionDir),
+        memoryMb,
+        extraJvmArgs: extraJvmArgs ? [extraJvmArgs] : [],
+      });
+    } catch (err) {
+      onLog && onLog(`[warn] Could not refresh start.py: ${err.message}\n`);
+    }
   }
 
-  const start = path.join(versionDir, "start.py");
   if (!fs.existsSync(start)) throw new Error(`Could not find startup script at:\n${start}`);
 
-  const jvmSetting = entry.jvm || jvmGlobal;
-  if (!jvmSetting) throw new Error("No Java runtime configured.");
+  const jvmSetting = entry.javaPath || entry.jvm || jvmGlobal;
+  if (!jvmSetting) throw new Error("No Java runtime configured. Install a JDK in Settings → Java.");
   const jvmPath = resolveJvmPath(jvmSetting, versionDir);
   if (!fs.existsSync(jvmPath)) throw new Error(`Could not find Java at:\n${jvmPath}`);
 
   const pythonCmd = resolvePythonCommand();
-  const env = { ...process.env, USERNAME: username, JVM: jvmPath };
+  const env = { ...process.env, USERNAME: username || "Player", JVM: jvmPath };
+  if (memoryMb) env.CUBOID_MEMORY_MB = String(memoryMb);
+  if (extraJvmArgs) env.CUBOID_JVM_ARGS = String(extraJvmArgs);
+
   const child = spawn(pythonCmd, [start, `--jvm=${jvmPath}`], {
     cwd: versionDir,
     env,
@@ -176,4 +179,12 @@ function pipeOutput(child, onLog) {
   });
 }
 
-module.exports = { testJava, launchVersion };
+module.exports = {
+  testJava,
+  launchVersion,
+  memoryBounds,
+  clampMemory,
+  regenerateStartPy,
+  MIN_MEMORY_MB,
+  RESERVED_MEMORY_MB,
+};

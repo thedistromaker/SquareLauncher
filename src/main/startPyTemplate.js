@@ -2,10 +2,14 @@
 
 /**
  * Generates a self-contained start.py for a version folder.
- * 1.0/2.x launchers run this with `python start.py --jvm=...` and USERNAME/JVM env vars.
  *
- * When a launcher profile.json is available, JVM flags, main class, game
- * args, and classpath (including Forge slim/extra jars) come from that profile.
+ * start.py is run as `python start.py --jvm=<path>` with USERNAME in the
+ * environment. JVM flags, main class, game args and classpath come from the
+ * folder's launcher profile.json.
+ *
+ * 4.0 adds per-profile memory: the requested heap is baked in at launch time
+ * (and also honoured from CUBOID_MEMORY_MB for hand-edited scripts), so the
+ * profile slider actually controls -Xmx instead of being ignored.
  */
 
 function pyStr(s) {
@@ -16,39 +20,11 @@ function pyList(arr) {
   return "[" + arr.map((x) => pyStr(x)).join(", ") + "]";
 }
 
-function buildStartPyFromPlan(plan, { versionId, credentials }) {
-  const creds =
-    credentials && credentials.mode === "msa"
-      ? `
-FIXED_UUID = ${pyStr(credentials.uuid)}
-FIXED_ACCESS_TOKEN = ${pyStr(credentials.accessToken)}
-FIXED_USER_TYPE = "msa"
-
-def _get_or_create_uuid(username: str) -> str:
-    return FIXED_UUID
-
-ACCESS_TOKEN = FIXED_ACCESS_TOKEN
-USER_TYPE = FIXED_USER_TYPE
-`.trim()
-      : `
-def _get_or_create_uuid(username: str) -> str:
-    if UUID_FILE.exists():
-        stored = UUID_FILE.read_text(encoding="utf-8").strip()
-        if stored:
-            return stored
-    offline_uuid = str(uuid.uuid3(uuid.NAMESPACE_DNS, f"OfflinePlayer:{username}"))
-    UUID_FILE.write_text(offline_uuid, encoding="utf-8")
-    return offline_uuid
-
-ACCESS_TOKEN = "0"
-USER_TYPE = "legacy"
-`.trim();
-
+function buildStartPyFromPlan(plan, { versionId, memoryMb, extraJvmArgs = [] } = {}) {
   const classpathRel = plan.classpathRel || [];
-  const jvmTemplate = (plan.jvmArgs || []).map((arg) =>
-    String(arg)
-      .replace(/\\/g, "/")
-  );
+  const jvmTemplate = (plan.jvmArgs || []).map((arg) => String(arg).replace(/\\/g, "/"));
+  const memory = Number.parseInt(memoryMb, 10);
+  const bakedMemory = Number.isFinite(memory) && memory > 0 ? memory : 0;
 
   return `import os
 import sys
@@ -76,9 +52,20 @@ def _resolve_jvm() -> Path:
 JAVA = _resolve_jvm()
 USERNAME = os.environ.get("USERNAME", "Player")
 
-${creds}
+
+def _get_or_create_uuid(username: str) -> str:
+    if UUID_FILE.exists():
+        stored = UUID_FILE.read_text(encoding="utf-8").strip()
+        if stored:
+            return stored
+    offline_uuid = str(uuid.uuid3(uuid.NAMESPACE_DNS, f"OfflinePlayer:{username}"))
+    UUID_FILE.write_text(offline_uuid, encoding="utf-8")
+    return offline_uuid
+
 
 PERMUUID = _get_or_create_uuid(USERNAME)
+ACCESS_TOKEN = "0"
+USER_TYPE = "legacy"
 
 classpath_rel = ${pyList(classpathRel)}
 classpath_entries = []
@@ -122,6 +109,23 @@ def _rewrite(arg: str) -> str:
 jvm_args = []
 for raw in ${pyList(jvmTemplate)}:
     jvm_args.append(_rewrite(raw))
+
+# Per-profile memory from the launcher, with an env override for hand tuning.
+_override = os.environ.get("CUBOID_MEMORY_MB", "").strip()
+if _override.isdigit():
+    _memory_mb = int(_override)
+else:
+    _memory_mb = ${bakedMemory}
+
+if _memory_mb >= 512:
+    jvm_args = [a for a in jvm_args if not (a.startswith("-Xmx") or a.startswith("-Xms"))]
+    _xms = min(max(_memory_mb // 2, 512), _memory_mb)
+    jvm_args.insert(0, f"-Xmx{_memory_mb}M")
+    jvm_args.insert(0, f"-Xms{_xms}M")
+
+for _extra in ${pyList(extraJvmArgs)}:
+    if _extra and _extra not in jvm_args:
+        jvm_args.append(_extra)
 
 # Force natives + game dir to this folder even if install-time paths differ.
 jvm_args = [a for a in jvm_args if not a.startswith("-Djava.library.path=")]
@@ -170,86 +174,4 @@ print(f"Exit code: {exit_code}", flush=True)
 `;
 }
 
-function buildStartPy(opts) {
-  const {
-    mainClass,
-    versionId,
-    assetIndexId,
-    versionType = "release",
-    credentials,
-    classpathRel,
-    jvmArgs,
-    gameArgs,
-  } = opts;
-
-  if (classpathRel || jvmArgs || gameArgs) {
-    return buildStartPyFromPlan(
-      {
-        mainClass,
-        classpathRel: classpathRel || ["client.jar"],
-        jvmArgs: jvmArgs || ["-Xms512M", "-Xmx2G"],
-        gameArgs: gameArgs || [
-          "--username",
-          "${auth_player_name}",
-          "--version",
-          versionId,
-          "--gameDir",
-          "${game_directory}",
-          "--assetsDir",
-          "${assets_root}",
-          "--assetIndex",
-          assetIndexId,
-          "--uuid",
-          "${auth_uuid}",
-          "--accessToken",
-          "${auth_access_token}",
-          "--userType",
-          "${user_type}",
-          "--versionType",
-          versionType,
-        ],
-      },
-      { versionId, credentials }
-    );
-  }
-
-  return buildStartPyFromPlan(
-    {
-      mainClass,
-      classpathRel: ["client.jar"],
-      jvmArgs: ["-Xms512M", "-Xmx2G", "-Djava.awt.headless=false"],
-      gameArgs: [
-        "--username",
-        "Player",
-        "--version",
-        versionId,
-        "--gameDir",
-        ".",
-        "--assetsDir",
-        "assets",
-        "--assetIndex",
-        assetIndexId,
-        "--uuid",
-        "0",
-        "--accessToken",
-        "0",
-        "--userType",
-        "legacy",
-        "--versionType",
-        versionType,
-      ],
-    },
-    { versionId, credentials }
-  );
-}
-
-function patchCredentials(startPyContents, { uuid, accessToken }) {
-  let out = startPyContents;
-  if (/FIXED_UUID = /.test(out)) {
-    out = out.replace(/FIXED_UUID = ".*"/, `FIXED_UUID = ${pyStr(uuid)}`);
-    out = out.replace(/FIXED_ACCESS_TOKEN = ".*"/, `FIXED_ACCESS_TOKEN = ${pyStr(accessToken)}`);
-  }
-  return out;
-}
-
-module.exports = { buildStartPy, buildStartPyFromPlan, patchCredentials };
+module.exports = { buildStartPyFromPlan };

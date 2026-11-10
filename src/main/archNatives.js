@@ -28,7 +28,7 @@
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
-const fetch = require("node-fetch");
+const { fetchUA } = require("./http");
 const extract = require("extract-zip");
 
 const MAVEN_CENTRAL = "https://repo1.maven.org/maven2";
@@ -92,7 +92,7 @@ function findLwjglModules(vanillaLibraries) {
 }
 
 async function downloadBuffer(url) {
-  const res = await fetch(url);
+  const res = await fetchUA(url);
   if (res.status === 404) return null; // not every module ships every classifier
   if (!res.ok) throw new Error(`Request failed (${res.status}): ${url}`);
   return res.buffer();

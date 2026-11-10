@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cuboid Launcher">
+  <defs>
+    <linearGradient id="top" x1="64" y1="14" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#aa9eff"/><stop offset="1" stop-color="#7c6aff"/>
+    </linearGradient>
+    <linearGradient id="left" x1="32" y1="40" x2="64" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c6aff"/><stop offset="1" stop-color="#4e3ebe"/>
+    </linearGradient>
+    <linearGradient id="right" x1="96" y1="40" x2="64" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4fd1c5"/><stop offset="1" stop-color="#2b9aa3"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="118" height="118" rx="30" fill="#111324"/>
+  <path d="M64 18 110 42 64 66 18 42Z" fill="url(#top)"/>
+  <path d="M18 42 64 66v44L18 86Z" fill="url(#left)"/>
+  <path d="M110 42 64 66v44l46-24Z" fill="url(#right)"/>
+  <path d="M64 46 79 53 64 60 49 53Z" fill="#111324"/>
+  <path d="M49 53 64 60v11L49 64Z" fill="#111324"/>
+  <path d="M79 53 64 60v11l15-7Z" fill="#111324"/>
+  <g fill="none" stroke="#e8eaf6" stroke-opacity=".92" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M64 18 110 42 64 66 18 42Z"/>
+    <path d="M18 42v44l46 24 46-24V42"/>
+    <path d="M64 66v44M64 46 79 53 64 60 49 53Z"/>
+    <path d="M49 53v11l15 8 15-8V53"/>
+  </g>
+</svg>

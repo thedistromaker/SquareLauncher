@@ -1,43 +1,34 @@
-# Updating SquareLauncher manually
-If your install has led you here, it means one of two things:<br>
-A: A bug in the code that couldn't detect the package origin (how it was installed)<br>
-B: Your install was hard to detect (make an issue either way)
-<br>C: You're using a Windows portable install/MacOS (unstable, still in priv testing)
+# Updating Cuboid manually
 
-Here's how to do it:
+Cuboid 4.0 reports itself as newer than the legacy SquareLauncher feed, so the
+in-app updater will normally say you're up to date. If you need to reinstall or
+move to a newer build, use the release artefacts for your platform.
 
-## Linux/DEB
-1. Download the latest DEB file from the releases for your CPU architecture (arm64 for ARM, amd64 for Intel/AMD/other x64)
-2. Go to your Downloads directory (usually ```~/Downloads```, if you chose a different directory go there)
-3. Run ```sudo apt install -y ./SquareLauncher-{arch}.deb``` where ```{arch}``` is your architecture eg ```arm64``` or ```amd64```.
-4. If it prompts for a password enter your user password.
+## Linux / DEB
+1. Download the current `.deb` for your CPU (`amd64` for x64, `arm64` for ARM).
+2. Run `sudo apt install -y ./Cuboid-{arch}.deb`.
 
-## Linux/RPM
-1. Download the latest RPM file from the releases for your CPU architecture (arm64 for ARM, amd64 for Intel/AMD/other x64)
-2. Go to your Downloads directory (usually ```~/Downloads```, if you chose a different directory go there)
-3. Run ```sudo dnf install -y ./SquareLauncher-{arch}.rpm ``` where ```{arch}``` is your architecture eg ```arm64``` or ```amd64```.
-4. If it prompts for a password enter your user password.
+## Linux / RPM
+1. Download the current `.rpm` for your CPU.
+2. Run `sudo dnf install -y ./Cuboid-{arch}.rpm` (or `sudo rpm -Uvh ./Cuboid-{arch}.rpm`).
 
-## Linux/AppImage
-1. Download the latest AppImage file from the releases for your CPU architecture (arm64 for ARM, amd64 for Intel/AMD/other x64)
-2. Go to your Downloads directory (usually ```~/Downloads```, if you chose a different directory go there)
-3. Copy it to where your current AppImage is and name it the same way (if using a launch script).
-4. Run ```chmod +x SquareLauncher-{arch}.AppImage``` or whatever your file is named to make it executable.
+## Linux / AppImage
+1. Download the current `.AppImage` for your CPU.
+2. Replace your existing AppImage, then `chmod +x Cuboid-{arch}.AppImage`.
 
-## Windows/NSIS
-1. Download the latest Windows EXE installer from the releases (amd64 only).
-2. Go to your Downloads directory.
-3. Double click to start the installer.
+## Windows / NSIS
+1. Download the Windows `.exe` installer.
+2. Run it and follow the prompts.
 
-## Windows/ZIP
-1. Download the latest Windows ZIP file (amd64 only).
-2. Go to your Downloads directory.
-3. Copy it to where you want to have your portable install.
-4. Double click the .exe file to start.
+## macOS
+1. Download the `.dmg`.
+2. Drag Cuboid to Applications.
+3. Approve it in System Settings — builds are unsigned.
 
-## MacOS
-1. Download the latest MacOS DMG file (all architectures excluding ppc/ppc64/ppc64le).
-2. Go to your Downloads directory in Finder.
-3. Double click on the SquareLauncher DMG.
-4. Drag the app to the Applications folder.
-5. Approve it in Settings as it is unsigned.
+## Migration from SquareLauncher 3.x
+
+Cuboid reads the same `versions/` + `versions.json` layout. Point Cuboid at your
+existing launcher directory (Settings → General → Migrate, or let it use the
+default data folder) and every profile, mod and resource pack is picked up.
+Microsoft sign-in sessions from 3.x are intentionally ignored and never loaded:
+Cuboid runs offline-mode only.
